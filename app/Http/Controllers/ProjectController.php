@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Project;
 use App\Http\Requests\StoreProjectRequest;
 use App\Http\Requests\UpdateProjectRequest;
+use App\Http\Resources\ProjectResource;
 
 class ProjectController extends Controller
 {
@@ -13,7 +14,11 @@ class ProjectController extends Controller
      */
     public function index()
     {
-        
+        $query = Project::query();
+        $projects = $query->paginate(10)->onEachSide(1);
+        return inertia('Project/Index', [
+            'projects' => ProjectResource::collection($projects),
+        ]);
     }
 
     /**
@@ -21,7 +26,6 @@ class ProjectController extends Controller
      */
     public function create()
     {
-        
     }
 
     /**
@@ -29,7 +33,6 @@ class ProjectController extends Controller
      */
     public function store(StoreProjectRequest $request)
     {
-        
     }
 
     /**
@@ -37,7 +40,6 @@ class ProjectController extends Controller
      */
     public function show(Project $project)
     {
-        
     }
 
     /**
@@ -45,7 +47,6 @@ class ProjectController extends Controller
      */
     public function edit(Project $project)
     {
-        
     }
 
     /**
@@ -53,7 +54,6 @@ class ProjectController extends Controller
      */
     public function update(UpdateProjectRequest $request, Project $project)
     {
-        
     }
 
     /**
@@ -61,6 +61,5 @@ class ProjectController extends Controller
      */
     public function destroy(Project $project)
     {
-        
     }
 }
