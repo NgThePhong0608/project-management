@@ -5,7 +5,7 @@ import Pagination from "@/Components/Pagination";
 import TextInput from "@/Components/TextInput";
 import TableHeading from "@/Components/TableHeading";
 
-const Index = ({ auth, users, queryParams = null }) => {
+const Index = ({ auth, users, queryParams = null, success }) => {
   queryParams = queryParams || {};
 
   const searchFieldChanged = (name, value) => {
@@ -38,6 +38,14 @@ const Index = ({ auth, users, queryParams = null }) => {
 
     router.get(route("user.index", queryParams));
   };
+
+  const deleteUser = (user) => {
+    if (!window.confirm("Are you sure you want to delete this user?")) {
+      return;
+    }
+    router.delete(route("user.destroy", user.id));
+  };
+
   return (
     <AuthenticatedLayout
       user={auth.user}
@@ -59,6 +67,11 @@ const Index = ({ auth, users, queryParams = null }) => {
 
       <div className="py-12">
         <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
+          {success && (
+            <div className="bg-emerald-500 py-2 px-4 text-white rounded mb-4">
+              {success}
+            </div>
+          )}
           <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
             <div className="p-6 text-gray-900 dark:text-gray-100">
               <div className="overflow-auto">
@@ -140,7 +153,12 @@ const Index = ({ auth, users, queryParams = null }) => {
                       >
                         <td className="px-3 py-2">{user.id}</td>
                         <th className="px-3 py-2 text-gray-100 text-nowrap">
-                          {user.name}
+                          <Link
+                            href={route("user.show", user.id)}
+                            className="px-3 py-2 font-medium text-white text-nowrap hover:underline"
+                          >
+                            {user.name}
+                          </Link>
                         </th>
                         <td className="px-3 py-2">{user.email}</td>
                         <td className="px-3 py-2 text-nowrap">
