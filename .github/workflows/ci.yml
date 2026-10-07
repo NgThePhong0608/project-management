@@ -72,9 +72,6 @@ jobs:
       - name: Generate App Key
         run: php artisan key:generate
 
-      - name: Run PHPUnit Tests
-        run: php artisan test
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -86,3 +83,6 @@ jobs:
 
       - name: Build Frontend Assets
         run: npm run build
+
+      - name: Run PHPUnit Tests
+        run: php artisan test
