@@ -1,6 +1,7 @@
 import InputError from "@/Components/InputError";
 import InputLabel from "@/Components/InputLabel";
 import TextInput from "@/Components/TextInput";
+import SelectInput from "@/Components/SelectInput";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head, Link, useForm } from "@inertiajs/react";
 
@@ -10,6 +11,7 @@ const Edit = ({ auth, user }) => {
   const { data, setData, post, errors, reset } = useForm({
     name: user.name || "",
     email: user.email || "",
+    role: user.role || "member",
     password: "",
     password_confirmation: "",
     _method: "PUT",
@@ -67,6 +69,24 @@ const Edit = ({ auth, user }) => {
                 />
 
                 <InputError message={errors.email} className="mt-2" />
+              </div>
+
+              <div className="mt-4">
+                <InputLabel htmlFor="user_role" value="Role" />
+
+                <SelectInput
+                  id="user_role"
+                  name="role"
+                  value={data.role}
+                  className="mt-1 block w-full"
+                  onChange={(e) => setData("role", e.target.value)}
+                >
+                  <option value="member">Member</option>
+                  <option value="manager">Manager</option>
+                  <option value="admin">Admin</option>
+                </SelectInput>
+
+                <InputError message={errors.role} className="mt-2" />
               </div>
 
               <div className="mt-4">

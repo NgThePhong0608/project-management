@@ -104,6 +104,8 @@ const Index = ({ auth, users, queryParams = null, success }) => {
                         Email
                       </TableHeading>
 
+                      <th className="px-3 py-3">Role</th>
+
                       <TableHeading
                         name="created_at"
                         sort_field={queryParams.sort_field}
@@ -143,6 +145,7 @@ const Index = ({ auth, users, queryParams = null, success }) => {
                       </th>
                       <th className="px-3 py-3"></th>
                       <th className="px-3 py-3"></th>
+                      <th className="px-3 py-3"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -161,6 +164,11 @@ const Index = ({ auth, users, queryParams = null, success }) => {
                           </Link>
                         </th>
                         <td className="px-3 py-2">{user.email}</td>
+                        <td className="px-3 py-2">
+                          <span className="px-2 py-1 rounded text-xs uppercase font-bold bg-gray-600 text-white">
+                            {user.role}
+                          </span>
+                        </td>
                         <td className="px-3 py-2 text-nowrap">
                           {user.created_at}
                         </td>

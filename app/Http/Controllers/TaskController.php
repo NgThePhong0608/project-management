@@ -15,6 +15,11 @@ use Illuminate\Support\Str;
 
 class TaskController extends Controller
 {
+    public function __construct()
+    {
+        $this->authorizeResource(Task::class, 'task');
+    }
+
     /**
      * Display a listing of the resource.
      */
@@ -60,11 +65,10 @@ class TaskController extends Controller
         $data = $request->validated();
         /** @var $image \Illuminate\Http\UploadedFile */
         $image = $data['image'] ?? null;
-        $data['assigned_user_id'] = auth()->id();
         $data['created_by'] = auth()->id();
         $data['updated_by'] = auth()->id();
         if ($image) {
-            $data['image_path'] = $image->store('project/' . Str::random(), 'public');
+            $data['image_path'] = $image->store('task/' . Str::random());
         }
         Task::create($data);
 
@@ -106,9 +110,9 @@ class TaskController extends Controller
         $data['updated_by'] = auth()->id();
         if ($image) {
             if ($task->image_path) {
-                Storage::disk('public')->deleteDirectory(dirname($task->image_path));
+                Storage::deleteDirectory(dirname($task->image_path));
             }
-            $data['image_path'] = $image->store('task/' . Str::random(), 'public');
+            $data['image_path'] = $image->store('task/' . Str::random());
         }
         $task->update($data);
 
@@ -124,7 +128,7 @@ class TaskController extends Controller
         $name = $task->name;
         $task->delete();
         if ($task->image_path) {
-            Storage::disk('public')->deleteDirectory(dirname($task->image_path));
+            Storage::deleteDirectory(dirname($task->image_path));
         }
         return to_route('task.index')
             ->with('success', "Task \"$name\" was deleted");

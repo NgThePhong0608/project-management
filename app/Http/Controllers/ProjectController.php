@@ -12,6 +12,11 @@ use Illuminate\Support\Str;
 
 class ProjectController extends Controller
 {
+    public function __construct()
+    {
+        $this->authorizeResource(Project::class, 'project');
+    }
+
     /**
      * Display a listing of the resource.
      */
@@ -54,7 +59,7 @@ class ProjectController extends Controller
         $data['created_by'] = auth()->id();
         $data['updated_by'] = auth()->id();
         if ($image) {
-            $data['image_path'] = $image->store('project/' . Str::random(), 'public');
+            $data['image_path'] = $image->store('project/' . Str::random());
         }
         Project::create($data);
 
@@ -107,9 +112,9 @@ class ProjectController extends Controller
         $data['updated_by'] = auth()->id();
         if ($image) {
             if ($project->image_path) {
-                Storage::disk('public')->deleteDirectory(dirname($project->image_path));
+                Storage::deleteDirectory(dirname($project->image_path));
             }
-            $data['image_path'] = $image->store('project/' . Str::random(), 'public');
+            $data['image_path'] = $image->store('project/' . Str::random());
         }
         $project->update($data);
 
@@ -125,7 +130,7 @@ class ProjectController extends Controller
         $name = $project->name;
         $project->delete();
         if ($project->image_path) {
-            Storage::disk('public')->deleteDirectory(dirname($project->image_path));
+            Storage::deleteDirectory(dirname($project->image_path));
         }
         return to_route('project.index')->with('success', 'Project ' . '"' . $name . '"'  . ' was deleted successfully!');
     }
