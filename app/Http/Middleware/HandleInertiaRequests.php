@@ -29,10 +29,16 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $user = $request->user();
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $request->user(),
+                'user' => $user,
+                'can' => $user ? [
+                    'createProject' => $user->can('create', \App\Models\Project::class),
+                    'createTask'    => $user->can('create', \App\Models\Task::class),
+                    'manageUsers'   => $user->can('viewAny', \App\Models\User::class),
+                ] : [],
             ],
         ];
     }

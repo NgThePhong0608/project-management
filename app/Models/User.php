@@ -14,6 +14,8 @@ class User extends Authenticatable implements MustVerifyEmail
 {
     use HasApiTokens, HasFactory, Notifiable;
 
+    public const ROLES = ['admin', 'manager', 'member'];
+
     /**
      * The attributes that are mass assignable.
      *
@@ -23,7 +25,13 @@ class User extends Authenticatable implements MustVerifyEmail
         'name',
         'email',
         'password',
+        'role',
     ];
+
+    public function hasRole(string ...$roles): bool
+    {
+        return in_array($this->role, $roles, true);
+    }
 
     /**
      * The attributes that should be hidden for serialization.

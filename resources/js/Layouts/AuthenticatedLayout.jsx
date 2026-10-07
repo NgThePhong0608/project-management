@@ -3,9 +3,10 @@ import ApplicationLogo from "@/Components/ApplicationLogo";
 import Dropdown from "@/Components/Dropdown";
 import NavLink from "@/Components/NavLink";
 import ResponsiveNavLink from "@/Components/ResponsiveNavLink";
-import { Link } from "@inertiajs/react";
+import { Link, usePage } from "@inertiajs/react";
 
 export default function Authenticated({ user, header, children }) {
+  const { auth } = usePage().props;
   const [showingNavigationDropdown, setShowingNavigationDropdown] =
     useState(false);
 
@@ -40,12 +41,14 @@ export default function Authenticated({ user, header, children }) {
                 >
                   All Tasks
                 </NavLink>
-                <NavLink
-                  href={route("user.index")}
-                  active={route().current("user.index")}
-                >
-                  Users
-                </NavLink>
+                {auth?.can?.manageUsers && (
+                  <NavLink
+                    href={route("user.index")}
+                    active={route().current("user.index")}
+                  >
+                    Users
+                  </NavLink>
+                )}
                 <NavLink
                   href={route("task.myTasks")}
                   active={route().current("task.myTasks")}
