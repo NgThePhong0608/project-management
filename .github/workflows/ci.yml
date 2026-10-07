@@ -109,7 +109,7 @@ jobs:
 
             aws ssm get-parameter \
               --region ap-southeast-1 \
-              --name "/pm-app/production/env" \
+              --name "/pm-app/dev/env" \
               --with-decryption \
               --query "Parameter.Value" \
               --output text > .env
