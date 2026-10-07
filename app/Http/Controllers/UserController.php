@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
 use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
 use App\Http\Resources\TaskResource;
 use App\Http\Resources\UserResource;
+use App\Models\User;
 
 class UserController extends Controller
 {
@@ -22,22 +22,22 @@ class UserController extends Controller
     {
         $query = User::query();
 
-        $sortField = request("sort_field", 'created_at');
-        $sortDirection = request("sort_direction", "desc");
+        $sortField = request('sort_field', 'created_at');
+        $sortDirection = request('sort_direction', 'desc');
 
-        if (request("name")) {
-            $query->where("name", "like", "%" . request("name") . "%");
+        if (request('name')) {
+            $query->where('name', 'like', '%'.request('name').'%');
         }
-        if (request("email")) {
-            $query->where("email", "like", "%" . request("email") . "%");
+        if (request('email')) {
+            $query->where('email', 'like', '%'.request('email').'%');
         }
 
         $users = $query->orderBy($sortField, $sortDirection)
             ->paginate(10)
             ->onEachSide(1);
 
-        return inertia("User/Index", [
-            "users" => UserResource::collection($users),
+        return inertia('User/Index', [
+            'users' => UserResource::collection($users),
             'queryParams' => request()->query() ?: null,
             'success' => session('success'),
         ]);
@@ -48,7 +48,7 @@ class UserController extends Controller
      */
     public function create()
     {
-        return inertia("User/Create");
+        return inertia('User/Create');
     }
 
     /**
@@ -62,7 +62,7 @@ class UserController extends Controller
         User::create($data);
 
         return to_route('user.index')
-            ->with('success', 'User '  . '"' . $data['name'] . '"' .  'was created');
+            ->with('success', 'User '.'"'.$data['name'].'"'.'was created');
     }
 
     /**
@@ -104,7 +104,7 @@ class UserController extends Controller
     public function update(UpdateUserRequest $request, User $user)
     {
         $data = $request->validated();
-        if (!empty($data['password'])) {
+        if (! empty($data['password'])) {
             $data['password'] = bcrypt($data['password']);
         } else {
             unset($data['password']);
@@ -112,7 +112,7 @@ class UserController extends Controller
         $user->update($data);
 
         return to_route('user.index')
-            ->with('success', 'User ' . '"' . $data['name'] . '"' . ' was updated');
+            ->with('success', 'User '.'"'.$data['name'].'"'.' was updated');
     }
 
     /**
@@ -123,6 +123,6 @@ class UserController extends Controller
         $user->delete();
 
         return to_route('user.index')
-            ->with('success', 'User ' . '"' . $user->name . '"' . ' was deleted');
+            ->with('success', 'User '.'"'.$user->name.'"'.' was deleted');
     }
 }

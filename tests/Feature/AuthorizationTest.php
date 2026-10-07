@@ -13,11 +13,17 @@ class AuthorizationTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private User $manager;
+
     private User $member;
+
     private User $otherMember;
+
     private Project $project;
+
     private Task $memberTask;
+
     private Task $otherTask;
 
     protected function setUp(): void
