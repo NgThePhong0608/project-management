@@ -50,16 +50,6 @@ jobs:
     name: Run Tests & Build
     runs-on: ubuntu-latest
     needs: [backend-lint, frontend-lint]
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
-          MYSQL_DATABASE: laravel_testing
-        ports:
-          - 3306:3306
-        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=5
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -68,28 +58,22 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
-          extensions: mbstring, pdo_mysql, gd, fileinfo
+          extensions: mbstring, sqlite, pdo_sqlite, gd, fileinfo
           coverage: none
 
-      - name: Copy .env.testing
+      - name: Prepare Environment
         run: |
-          cp .env.example .env.testing
-          sed -i 's/DB_DATABASE=.*/DB_DATABASE=laravel_testing/' .env.testing
-          sed -i 's/DB_PASSWORD=.*/DB_PASSWORD=/' .env.testing
-          sed -i 's/DB_HOST=.*/DB_HOST=127.0.0.1/' .env.testing
-          sed -i 's/FILESYSTEM_DISK=.*/FILESYSTEM_DISK=public/' .env.testing
+          cp .env.example .env
+          sed -i 's/FILESYSTEM_DISK=.*/FILESYSTEM_DISK=public/' .env
 
       - name: Install Composer Dependencies
         run: composer install --prefer-dist --no-progress --no-interaction
 
       - name: Generate App Key
-        run: php artisan key:generate --env=testing
-
-      - name: Run Migrations
-        run: php artisan migrate --env=testing --force
+        run: php artisan key:generate
 
       - name: Run PHPUnit Tests
-        run: php artisan test --env=testing
+        run: php artisan test
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
