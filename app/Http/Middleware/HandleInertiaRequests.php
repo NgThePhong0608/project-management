@@ -17,7 +17,7 @@ class HandleInertiaRequests extends Middleware
     /**
      * Determine the current asset version.
      */
-    public function version(Request $request): string|null
+    public function version(Request $request): ?string
     {
         return parent::version($request);
     }
@@ -30,14 +30,15 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         $user = $request->user();
+
         return [
             ...parent::share($request),
             'auth' => [
                 'user' => $user,
                 'can' => $user ? [
                     'createProject' => $user->can('create', \App\Models\Project::class),
-                    'createTask'    => $user->can('create', \App\Models\Task::class),
-                    'manageUsers'   => $user->can('viewAny', \App\Models\User::class),
+                    'createTask' => $user->can('create', \App\Models\Task::class),
+                    'manageUsers' => $user->can('viewAny', \App\Models\User::class),
                 ] : [],
             ],
         ];

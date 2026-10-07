@@ -2,7 +2,7 @@ import { forwardRef, useEffect, useRef } from "react";
 
 export default forwardRef(function TextAreaInput(
   { type = "text", className = "", isFocused = false, children, ...props },
-  ref
+  ref,
 ) {
   const input = ref ? ref : useRef();
 

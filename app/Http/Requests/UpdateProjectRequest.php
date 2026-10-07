@@ -23,11 +23,11 @@ class UpdateProjectRequest extends FormRequest
     public function rules(): array
     {
         return [
-            "name" => ['required', 'max:255'],
+            'name' => ['required', 'max:255'],
             'image' => ['nullable', 'image'],
-            "description" => ['nullable', 'string'],
+            'description' => ['nullable', 'string'],
             'due_date' => ['nullable', 'date'],
-            'status' => ['required', Rule::in(['pending', 'in_progress', 'completed'])]
+            'status' => ['required', Rule::in(['pending', 'in_progress', 'completed'])],
         ];
     }
 }

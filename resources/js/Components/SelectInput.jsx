@@ -2,7 +2,7 @@ import { forwardRef, useRef } from "react";
 
 export default forwardRef(function SelectInput(
   { className = "", children, ...props },
-  ref
+  ref,
 ) {
   const input = ref ? ref : useRef();
 
