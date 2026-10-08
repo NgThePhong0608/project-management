@@ -106,11 +106,12 @@ jobs:
             echo "Starting deployment on EC2..."
             cd ~/project-management
 
-            # 1. Pull code mới nhất
+            sudo chown -R $(id -u):$(id -g) .
+
             git fetch origin
             git reset --hard origin/${{ github.ref_name }}
+            git clean -fd
 
-            # 2. Cập nhật .env từ AWS SSM Parameter Store
             aws ssm get-parameter \
               --region ap-southeast-1 \
               --name "/pm-app/dev/env" \
@@ -118,13 +119,10 @@ jobs:
               --query "Parameter.Value" \
               --output text > .env
 
-            # Cập nhật APP_URL đúng IP của EC2
             sed -i "s#APP_URL=.*#APP_URL=http://$(curl -s http://checkip.amazonaws.com):8088#" .env
 
-            # 3. Build frontend tĩnh (dùng container node tạm thời, tự giải phóng RAM)
             docker compose run --rm node sh -c "npm install && npm run build"
 
-            # 4. Khởi chạy Docker containers (entrypoint.sh sẽ tự chạy migrate & optimize cache)
             docker compose up -d --build --remove-orphans
 
             echo "Deployment completed successfully!"
