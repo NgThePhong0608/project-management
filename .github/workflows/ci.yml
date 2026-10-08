@@ -169,9 +169,7 @@ jobs:
               --with-decryption \
               --query "Parameter.Value" \
               --output text > .env
-
-            # Cập nhật APP_URL theo IP thật của EC2 và gắn biến DOCKER_REPO
-            sed -i "s#APP_URL=.*#APP_URL=http://$(curl -s http://checkip.amazonaws.com):8088#" .env
+ 
             echo "DOCKER_REPO=${{ secrets.DOCKERHUB_USERNAME }}/project-management" >> .env
 
             # 2. Đăng nhập Docker Hub trên EC2 để kéo Private Images
