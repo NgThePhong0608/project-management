@@ -16,8 +16,9 @@ if [ ! -f "vendor/autoload.php" ]; then
     composer install --no-interaction --prefer-dist --optimize-autoloader
 fi
 
-# Chạy migrations tự động
+# Chạy migrations & seed dữ liệu tự động
 php artisan migrate --force
+php artisan db:seed --force
 
 # Xóa cache và cache lại cấu hình cho production
 php artisan config:clear

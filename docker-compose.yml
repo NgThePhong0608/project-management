@@ -4,8 +4,6 @@ services:
     restart: unless-stopped
     volumes:
       - .:/var/www
-    depends_on:
-      - mysql
 
   nginx:
     image: nginx:alpine
@@ -21,6 +19,7 @@ services:
   mysql:
     image: mysql:8.0
     restart: unless-stopped
+    profiles: ["dev"]
     environment:
       MYSQL_DATABASE: ${DB_DATABASE:-laravel}
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-secret}
