@@ -31,5 +31,11 @@ if [ "$APP_ENV" = "production" ]; then
     php artisan view:cache || true
 fi
 
+# Phân quyền chuẩn cho user www-data (user chạy php-fpm worker)
+chown -R www-data:www-data storage bootstrap/cache
+chmod -R 775 storage bootstrap/cache
+chmod -R 777 storage/logs storage/framework
+
 echo "Laravel ready. Starting php-fpm..."
 exec php-fpm
+
