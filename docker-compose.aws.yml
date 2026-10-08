@@ -1,5 +1,10 @@
 services:
   app:
+    image: ${DOCKER_REPO:-project-management}:app
+    restart: unless-stopped
+    volumes:
+      - ./.env:/var/www/.env:ro
+      - storage-uploads:/var/www/storage/app/public
     logging:
       driver: "awslogs"
       options:
@@ -10,6 +15,14 @@ services:
         max-buffer-size: "4m"
 
   nginx:
+    image: ${DOCKER_REPO:-project-management}:nginx
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8088}:80"
+    depends_on:
+      - app
+    volumes:
+      - storage-uploads:/var/www/public/storage:ro
     logging:
       driver: "awslogs"
       options:
@@ -18,3 +31,6 @@ services:
         awslogs-stream: "nginx"
         mode: "non-blocking"
         max-buffer-size: "4m"
+
+volumes:
+  storage-uploads:

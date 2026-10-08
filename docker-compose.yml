@@ -1,6 +1,8 @@
 services:
   app:
-    build: ./docker/php
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
     restart: unless-stopped
     volumes:
       - .:/var/www
