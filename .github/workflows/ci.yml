@@ -87,7 +87,7 @@ jobs:
       - name: Run PHPUnit Tests
         run: php artisan test
 
-      # Lưu lại thư mục public/build để dùng cho job deploy
+      # Đóng gói thư mục build frontend để deploy
       - name: Upload Built Frontend Assets
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         uses: actions/upload-artifact@v4
@@ -105,42 +105,23 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Tải asset đã build từ job tests về
-      - name: Download Built Frontend Assets
-        uses: actions/download-artifact@v4
-        with:
-          name: frontend-build
-          path: public/build/
-
-      # Copy thư mục build tĩnh lên EC2 bằng SCP (cực nhanh, không tốn RAM của EC2)
-      - name: Copy Frontend Assets to EC2
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: "public/build/"
-          target: "~/project-management/"
-
-      # Thực thi các lệnh deploy trên EC2 qua SSH
-      - name: Execute Deploy Commands on EC2
+      # 1. Pull code mới và chuẩn bị .env trên EC2 trước
+      - name: Prepare Code and Environment on EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          command_timeout: 30m
-          timeout: 30m
+          command_timeout: 10m
+          timeout: 10m
           script: |
             set -e
-            echo "Starting deployment on EC2..."
+            echo "Pulling latest code on EC2..."
             cd ~/project-management
-
-            # 1. Pull code mới nhất từ git
             git fetch origin
             git reset --hard origin/${{ github.ref_name }}
 
-            # 2. Cập nhật .env từ AWS SSM Parameter Store
+            echo "Fetching environment variables from AWS SSM Parameter Store..."
             aws ssm get-parameter \
               --region ap-southeast-1 \
               --name "/pm-app/dev/env" \
@@ -148,10 +129,37 @@ jobs:
               --query "Parameter.Value" \
               --output text > .env
 
-            # Cập nhật APP_URL đúng với IP của EC2
             sed -i "s#APP_URL=.*#APP_URL=http://$(curl -s http://checkip.amazonaws.com):8088#" .env
 
-            # 3. Khởi chạy Docker containers
-            docker compose up -d --build
+      # 2. Tải asset từ job test về runner
+      - name: Download Built Frontend Assets
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: build/
 
+      # 3. SCP trực tiếp vào project-management/public/build trên EC2
+      - name: Copy Frontend Assets to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "build/*"
+          target: "~/project-management/public/"
+
+      # 4. Khởi chạy Docker containers trên EC2
+      - name: Restart Containers on EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          command_timeout: 10m
+          timeout: 10m
+          script: |
+            set -e
+            cd ~/project-management
+            echo "Starting Docker containers..."
+            docker compose up -d --build
             echo "Deployment completed successfully!"
