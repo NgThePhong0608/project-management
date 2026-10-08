@@ -123,6 +123,6 @@ jobs:
 
             docker compose run --rm node sh -c "npm install && npm run build"
 
-            docker compose up -d --build --remove-orphans
+            docker compose -f docker-compose.yml -f docker-compose.aws.yml up -d --build --remove-orphans
 
             echo "Deployment completed successfully!"

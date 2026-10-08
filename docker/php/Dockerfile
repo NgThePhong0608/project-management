@@ -12,4 +12,6 @@ WORKDIR /var/www
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
+COPY logging.conf /usr/local/etc/php-fpm.d/zz-logging.conf
+
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

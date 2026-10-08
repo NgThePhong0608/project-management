@@ -1,0 +1,20 @@
+services:
+  app:
+    logging:
+      driver: "awslogs"
+      options:
+        awslogs-region: "ap-southeast-1"
+        awslogs-group: "${LOG_GROUP:-/pm-app/dev}"
+        awslogs-stream: "app"
+        mode: "non-blocking"
+        max-buffer-size: "4m"
+
+  nginx:
+    logging:
+      driver: "awslogs"
+      options:
+        awslogs-region: "ap-southeast-1"
+        awslogs-group: "${LOG_GROUP:-/pm-app/dev}"
+        awslogs-stream: "nginx"
+        mode: "non-blocking"
+        max-buffer-size: "4m"
