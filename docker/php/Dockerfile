@@ -18,9 +18,16 @@ COPY docker/php/logging.conf /usr/local/etc/php-fpm.d/zz-logging.conf
 # Copy toàn bộ mã nguồn ứng dụng
 COPY . /var/www
 
-# Cài đặt composer production dependencies
+ARG APP_ENV=production
+ENV APP_ENV=${APP_ENV}
+
+# Cài đặt composer dependencies (chỉ dùng --no-dev khi APP_ENV=production)
 RUN if [ -f "composer.json" ]; then \
-        composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader; \
+        if [ "$APP_ENV" = "production" ]; then \
+            composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader; \
+        else \
+            composer install --no-interaction --prefer-dist --optimize-autoloader; \
+        fi; \
     fi
 
 # Khởi tạo thư mục và phân quyền cho storage/cache
