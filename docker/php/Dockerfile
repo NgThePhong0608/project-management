@@ -18,7 +18,7 @@ COPY docker/php/logging.conf /usr/local/etc/php-fpm.d/zz-logging.conf
 # Copy toàn bộ mã nguồn ứng dụng
 COPY . /var/www
 
-ARG APP_ENV=production
+ARG APP_ENV=dev
 ENV APP_ENV=${APP_ENV}
 
 # Cài đặt composer dependencies (chỉ dùng --no-dev khi APP_ENV=production)
