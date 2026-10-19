@@ -431,21 +431,57 @@ File workflow `.github/workflows/ci.yml` sử dụng AWS CLI chính thức, lo�
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-southeast-1
 
-      - name: Trigger ECS Service Deployment
+      - name: Trigger ECS Deployment & Validate Rollout
         run: |
-          echo "Triggering new deployment on Amazon ECS (pm-cluster / pm-service)..."
-          aws ecs update-service \
+          echo "🚀 Triggering new deployment on Amazon ECS (pm-cluster / pm-service)..."
+          
+          # 1. Trigger deployment and capture the newly created deployment ID
+          DEPLOYMENT_ID=$(aws ecs update-service \
             --cluster pm-cluster \
             --service pm-service \
-            --force-new-deployment
+            --force-new-deployment \
+            --query "service.deployments[?status=='PRIMARY'].id" \
+            --output text)
 
-      - name: Wait for ECS Service to reach steady state
-        run: |
-          echo "Waiting for ECS service to stabilize..."
+          echo "Deployment ID: $DEPLOYMENT_ID"
+
+          # 2. Wait 15s for ECS to register the new deployment and transition state
+          echo "Waiting 15s for ECS to register rollout..."
+          sleep 15
+
+          # 3. Wait for service to reach steady state
+          echo "Waiting for service to stabilize..."
           aws ecs wait services-stable \
             --cluster pm-cluster \
-            --services pm-service
-          echo "Deployment to Amazon ECS completed successfully!"
+            --services pm-service || true
+
+          # 4. Inspect rolloutState of the targeted deployment
+          DEPLOY_INFO=$(aws ecs describe-services \
+            --cluster pm-cluster \
+            --services pm-service \
+            --query "services[0].deployments[?id=='$DEPLOYMENT_ID'].[rolloutState, rolloutStateReason]" \
+            --output text)
+
+          ROLLOUT_STATE=$(echo "$DEPLOY_INFO" | awk '{print $1}')
+          ROLLOUT_REASON=$(echo "$DEPLOY_INFO" | cut -d' ' -f2-)
+
+          echo "Rollout State: $ROLLOUT_STATE"
+          if [ -n "$ROLLOUT_REASON" ]; then
+            echo "Reason: $ROLLOUT_REASON"
+          fi
+
+          # 5. If deployment failed or did not reach COMPLETED -> print recent ECS events and fail pipeline
+          if [ "$ROLLOUT_STATE" = "FAILED" ] || [ -z "$ROLLOUT_STATE" ]; then
+            echo "❌ Deployment FAILED! Printing recent ECS service events:"
+            aws ecs describe-services \
+              --cluster pm-cluster \
+              --services pm-service \
+              --query "services[0].events[:6].[createdAt, message]" \
+              --output table
+            exit 1
+          fi
+
+          echo "✅ Deployment to Amazon ECS COMPLETED successfully!"
 ```
 
 ### Danh sách GitHub Secrets cần thiết:
