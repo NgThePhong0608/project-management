@@ -138,69 +138,31 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/project-management:nginx-${{ github.sha }}
 
   deploy:
-    name: Deploy to AWS EC2
+    name: Deploy to Amazon ECS
     runs-on: ubuntu-latest
     needs: [build-and-push]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     steps:
-      - name: Deploy to EC2 via SSH
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER || 'ubuntu' }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          command_timeout: 15m
-          timeout: 15m
-          script: |
-            set -e
-            echo "Starting deployment on EC2..."
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-southeast-1
 
-            if ! command -v docker &> /dev/null; then
-              echo "Docker not found. Installing Docker & Docker Compose plugin..."
-              sudo apt-get update -y
-              sudo apt-get install -y ca-certificates curl gnupg git unzip
-              sudo install -m 0755 -d /etc/apt/keyrings
-              curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-              sudo chmod a+r /etc/apt/keyrings/docker.gpg
-              echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-              sudo apt-get update -y
-              sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-              sudo usermod -aG docker $USER
-            fi
+      - name: Trigger ECS Service Deployment
+        run: |
+          echo "Triggering new deployment on Amazon ECS (pm-cluster / pm-service)..."
+          aws ecs update-service \
+            --cluster pm-cluster \
+            --service pm-service \
+            --force-new-deployment
 
-            if ! command -v aws &> /dev/null; then
-              echo "AWS CLI not found. Installing AWS CLI..."
-              sudo apt-get update -y && sudo apt-get install -y awscli || (curl -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && unzip -q awscliv2.zip && sudo ./aws/install && rm -rf aws awscliv2.zip)
-            fi
+      - name: Wait for ECS Service to reach steady state
+        run: |
+          echo "Waiting for ECS service to stabilize..."
+          aws ecs wait services-stable \
+            --cluster pm-cluster \
+            --services pm-service
+          echo "Deployment to Amazon ECS completed successfully!"
 
-            if [ ! -d "$HOME/project-management" ]; then
-              echo "Cloning repository..."
-              git clone https://github.com/${{ github.repository }}.git $HOME/project-management
-            fi
-
-            cd $HOME/project-management
-
-            sudo chown -R $(id -u):$(id -g) .
-
-            git fetch origin
-            git reset --hard origin/${{ github.ref_name }}
-            git clean -fd
-
-            aws ssm get-parameter \
-              --region ap-southeast-1 \
-              --name "/pm-app/dev/env" \
-              --with-decryption \
-              --query "Parameter.Value" \
-              --output text > .env
-
-            echo "" >> .env
-            echo "DOCKER_REPO=${{ secrets.DOCKERHUB_USERNAME }}/project-management" >> .env
-            echo "APP_PORT=80" >> .env
-
-            echo "${{ secrets.DOCKERHUB_TOKEN }}" | sudo docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
-
-            sudo docker compose -f docker-compose.aws.yml pull
-
-            sudo docker compose -f docker-compose.aws.yml up -d --remove-orphans
-
-            echo "Deployment completed successfully!"
