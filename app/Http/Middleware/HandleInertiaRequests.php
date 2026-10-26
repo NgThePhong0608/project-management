@@ -2,6 +2,9 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Project;
+use App\Models\Task;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -36,9 +39,9 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $user,
                 'can' => $user ? [
-                    'createProject' => $user->can('create', \App\Models\Project::class),
-                    'createTask' => $user->can('create', \App\Models\Task::class),
-                    'manageUsers' => $user->can('viewAny', \App\Models\User::class),
+                    'createProject' => $user->can('create', Project::class),
+                    'createTask' => $user->can('create', Task::class),
+                    'manageUsers' => $user->can('viewAny', User::class),
                 ] : [],
             ],
         ];
