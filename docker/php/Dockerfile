@@ -39,4 +39,6 @@ RUN mkdir -p /var/www/storage/framework/cache/data \
     && chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache \
     && chmod -R 777 /var/www/storage /var/www/bootstrap/cache
 
+EXPOSE 9000 8080
+
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
