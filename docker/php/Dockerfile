@@ -2,7 +2,7 @@ FROM php:8.5.12-fpm-alpine
 
 RUN apk add --no-cache libpng-dev libjpeg-turbo-dev freetype-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install pdo_mysql gd
+    && docker-php-ext-install pdo_mysql gd pcntl
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 

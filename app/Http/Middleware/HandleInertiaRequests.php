@@ -38,6 +38,7 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'auth' => [
                 'user' => $user,
+                'unreadNotificationsCount' => $user ? $user->unreadNotifications()->count() : 0,
                 'can' => $user ? [
                     'createProject' => $user->can('create', Project::class),
                     'createTask' => $user->can('create', Task::class),

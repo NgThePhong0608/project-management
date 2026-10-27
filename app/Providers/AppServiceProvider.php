@@ -20,7 +20,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        if (str_starts_with(config('app.url'), 'https://') || $this->app->environment('production', 'staging', 'dev')) {
+        if (str_starts_with(config('app.url'), 'https://') || (! str_contains(config('app.url'), 'localhost') && $this->app->environment('production', 'staging', 'dev'))) {
             URL::forceScheme('https');
         }
     }
