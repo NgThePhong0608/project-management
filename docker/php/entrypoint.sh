@@ -37,6 +37,11 @@ chown -R www-data:www-data storage bootstrap/cache
 chmod -R 777 storage bootstrap/cache
 chmod -R 777 storage/logs storage/framework
 
+if [ $# -gt 0 ]; then
+    echo "Executing custom command: $@"
+    exec "$@"
+fi
+
 echo "Laravel ready. Starting php-fpm..."
 exec php-fpm
 

@@ -10,14 +10,55 @@ use App\Http\Resources\UserResource;
 use App\Models\Project;
 use App\Models\Task;
 use App\Models\User;
+use App\Notifications\TaskAssignedNotification;
+use App\Services\AwsNotificationService;
+use DateTimeInterface;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class TaskController extends Controller
 {
-    public function __construct()
-    {
+    public function __construct(
+        protected AwsNotificationService $awsNotificationService
+    ) {
         $this->authorizeResource(Task::class, 'task');
+    }
+
+    protected function clearDashboardCache(?int $userId = null): void
+    {
+        Cache::forget('dashboard_global_task_counts');
+        if ($userId) {
+            Cache::forget("dashboard_user_stats_{$userId}");
+        }
+    }
+
+    protected function publishTaskNotification(Task $task, ?User $assignedUser, string $action = 'assigned'): void
+    {
+        if (! $assignedUser) {
+            return;
+        }
+
+        $assignedUser->notify(new TaskAssignedNotification($task, $action, $this->awsNotificationService));
+
+        $dueDate = $task->due_date instanceof DateTimeInterface
+            ? $task->due_date->format('Y-m-d')
+            : ($task->due_date ?? null);
+
+        // Publish event to AWS SNS Topic & log to CloudWatch Logs
+        $this->awsNotificationService->publish("Task {$action}: {$task->name}", [
+            'event' => 'TASK_'.strtoupper($action),
+            'task_id' => $task->id,
+            'task_name' => $task->name,
+            'project_id' => $task->project_id,
+            'project_name' => $task->project?->name ?? 'General',
+            'assigned_user_id' => $assignedUser->id,
+            'assigned_user_name' => $assignedUser->name,
+            'assigned_user_email' => $assignedUser->email,
+            'due_date' => $dueDate,
+            'action' => $action,
+            'timestamp' => now()->toIso8601String(),
+        ]);
     }
 
     /**
@@ -71,7 +112,13 @@ class TaskController extends Controller
         if ($image) {
             $data['image_path'] = $image->store('task/'.Str::random());
         }
-        Task::create($data);
+        $task = Task::create($data);
+        $this->clearDashboardCache($task->assigned_user_id);
+
+        if ($task->assigned_user_id) {
+            $assignedUser = User::find($task->assigned_user_id);
+            $this->publishTaskNotification($task, $assignedUser, 'assigned');
+        }
 
         return to_route('project.index')
             ->with('success', 'Task '.'"'.$data['name'].'"'.' was created successfully!');
@@ -116,7 +163,18 @@ class TaskController extends Controller
             }
             $data['image_path'] = $image->store('task/'.Str::random());
         }
+        $oldAssignedUserId = $task->assigned_user_id;
         $task->update($data);
+
+        $this->clearDashboardCache($task->assigned_user_id);
+        if ($oldAssignedUserId && $oldAssignedUserId != $task->assigned_user_id) {
+            $this->clearDashboardCache($oldAssignedUserId);
+        }
+
+        if ($task->assigned_user_id && $task->assigned_user_id != $oldAssignedUserId) {
+            $assignedUser = User::find($task->assigned_user_id);
+            $this->publishTaskNotification($task, $assignedUser, 'reassigned');
+        }
 
         return to_route('task.index')
             ->with('success', "Task \"$task->name\" was updated");
@@ -128,7 +186,9 @@ class TaskController extends Controller
     public function destroy(Task $task)
     {
         $name = $task->name;
+        $assignedUserId = $task->assigned_user_id;
         $task->delete();
+        $this->clearDashboardCache($assignedUserId);
         if ($task->image_path) {
             Storage::deleteDirectory(dirname($task->image_path));
         }

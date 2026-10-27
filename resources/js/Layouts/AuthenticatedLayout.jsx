@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import ApplicationLogo from "@/Components/ApplicationLogo";
 import Dropdown from "@/Components/Dropdown";
 import NavLink from "@/Components/NavLink";
+import NotificationDropdown from "@/Components/NotificationDropdown";
+import NotificationToast from "@/Components/NotificationToast";
 import ResponsiveNavLink from "@/Components/ResponsiveNavLink";
 import { Link, usePage } from "@inertiajs/react";
 
@@ -9,6 +11,32 @@ export default function Authenticated({ user, header, children }) {
   const { auth } = usePage().props;
   const [showingNavigationDropdown, setShowingNavigationDropdown] =
     useState(false);
+
+  const currentUserId = user?.id || auth?.user?.id;
+
+  useEffect(() => {
+    if (!currentUserId || !window.Echo) {
+      return;
+    }
+
+    const channelName = `App.Models.User.${currentUserId}`;
+    const channel = window.Echo.private(channelName);
+
+    channel.notification((notification) => {
+      window.dispatchEvent(
+        new CustomEvent("app:notification-received", {
+          detail: notification,
+        }),
+      );
+    });
+
+    return () => {
+      channel.stopListening(
+        ".Illuminate\\Notifications\\Events\\BroadcastNotificationCreated",
+      );
+      window.Echo.leave(channelName);
+    };
+  }, [currentUserId]);
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
@@ -59,6 +87,7 @@ export default function Authenticated({ user, header, children }) {
             </div>
 
             <div className="hidden sm:flex sm:items-center sm:ms-6">
+              <NotificationDropdown />
               <div className="ms-3 relative">
                 <Dropdown>
                   <Dropdown.Trigger>
@@ -101,7 +130,8 @@ export default function Authenticated({ user, header, children }) {
               </div>
             </div>
 
-            <div className="-me-2 flex items-center sm:hidden">
+            <div className="-me-2 flex items-center sm:hidden space-x-2">
+              <NotificationDropdown />
               <button
                 onClick={() =>
                   setShowingNavigationDropdown(
@@ -189,6 +219,8 @@ export default function Authenticated({ user, header, children }) {
       )}
 
       <main>{children}</main>
+
+      <NotificationToast />
     </div>
   );
 }

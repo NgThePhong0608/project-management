@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TaskController;
@@ -30,6 +31,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('task.myTasks');
     Route::resource('task', TaskController::class);
     Route::resource('user', UserController::class);
+
+    Route::get('/notifications', [NotificationController::class, 'index'])
+        ->name('notifications.index');
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead'])
+        ->name('notifications.read');
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])
+        ->name('notifications.readAll');
 });
 
 Route::middleware('auth')->group(function () {

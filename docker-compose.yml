@@ -7,6 +7,19 @@ services:
     volumes:
       - .:/var/www
 
+  reverb:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    restart: unless-stopped
+    entrypoint: ["php", "artisan", "reverb:start", "--host=0.0.0.0", "--port=8080", "--debug"]
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/var/www
+    depends_on:
+      - app
+
   nginx:
     image: nginx:alpine
     restart: unless-stopped
@@ -41,5 +54,25 @@ services:
     volumes:
       - .:/var/www
 
+  redis:
+    image: redis:alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    restart: unless-stopped
+    command: ["php", "artisan", "queue:work", "sqs", "--sleep=3", "--tries=3"]
+    volumes:
+      - .:/var/www
+    depends_on:
+      - app
+
 volumes:
   mysql-data:
+  redis-data:
