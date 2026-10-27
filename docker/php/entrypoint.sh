@@ -42,17 +42,13 @@ if [ $# -gt 0 ]; then
     exec "$@"
 fi
 
-# Start background queue worker if queue connection is configured
-if [ -n "$QUEUE_CONNECTION" ] && [ "$QUEUE_CONNECTION" != "sync" ] && [ "$QUEUE_CONNECTION" != "null" ]; then
-    echo "Starting background queue worker..."
-    (while true; do php artisan queue:work --sleep=3 --tries=3 --max-time=3600; sleep 2; done) &
-fi
+# Start background queue worker
+echo "Starting background queue worker..."
+(while true; do php artisan queue:work --sleep=3 --tries=3 --max-time=3600; sleep 2; done) &
 
-# Start background Reverb server if Reverb is configured
-if [ -n "$REVERB_APP_KEY" ]; then
-    echo "Starting background Reverb server on port 8080..."
-    (while true; do php artisan reverb:start --host=0.0.0.0 --port=8080; sleep 2; done) &
-fi
+# Start background Reverb server
+echo "Starting background Reverb server on port 8080..."
+(while true; do php artisan reverb:start --host=0.0.0.0 --port=8080; sleep 2; done) &
 
 echo "Laravel ready. Starting php-fpm..."
 exec php-fpm
