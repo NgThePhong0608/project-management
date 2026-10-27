@@ -150,15 +150,83 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-southeast-1
 
+      - name: Sync .env from SSM Parameter Store to EC2 Node
+        run: |
+          echo "🔄 Syncing .env from SSM Parameter Store (/pm-app/dev/env) to EC2 host..."
+          
+          # Discover EC2 instance backing the ECS cluster
+          CONTAINER_INSTANCE_ARN=$(aws ecs list-container-instances \
+            --cluster pm-cluster \
+            --query "containerInstanceArns[0]" \
+            --output text)
+          
+          if [ -n "$CONTAINER_INSTANCE_ARN" ] && [ "$CONTAINER_INSTANCE_ARN" != "None" ]; then
+            INSTANCE_ID=$(aws ecs describe-container-instances \
+              --cluster pm-cluster \
+              --container-instances "$CONTAINER_INSTANCE_ARN" \
+              --query "containerInstances[0].ec2InstanceId" \
+              --output text)
+            
+            echo "Target EC2 Instance: $INSTANCE_ID"
+            
+            # Execute SSM run command to pull latest decrypted .env from Parameter Store
+            COMMAND_ID=$(aws ssm send-command \
+              --instance-ids "$INSTANCE_ID" \
+              --document-name "AWS-RunShellScript" \
+              --comment "Sync .env from SSM to /home/ec2-user/.env" \
+              --parameters 'commands=["aws ssm get-parameter --region ap-southeast-1 --name /pm-app/dev/env --with-decryption --query Parameter.Value --output text > /home/ec2-user/.env", "chmod 600 /home/ec2-user/.env"]' \
+              --query "Command.CommandId" \
+              --output text)
+            
+            echo "SSM Command dispatched: $COMMAND_ID. Waiting for execution..."
+            aws ssm wait command-executed \
+              --command-id "$COMMAND_ID" \
+              --instance-id "$INSTANCE_ID"
+            
+            echo "✅ Successfully synced latest .env to /home/ec2-user/.env on $INSTANCE_ID"
+          else
+            echo "⚠️ No active container instance found in pm-cluster. Skipping SSM sync."
+          fi
+
+      - name: Register New ECS Task Definition with Git SHA
+        id: render-task-def
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          echo "📝 Rendering new Task Definition for pm-task with SHA: ${{ github.sha }}..."
+          
+          # 1. Fetch active task definition, update images to use SHA tag, strip metadata
+          aws ecs describe-task-definition \
+            --task-definition pm-task \
+            --query "taskDefinition" | \
+            jq --arg APP_IMAGE "$DOCKER_USERNAME/project-management:app-${{ github.sha }}" \
+               --arg NGINX_IMAGE "$DOCKER_USERNAME/project-management:nginx-${{ github.sha }}" \
+               'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy) |
+                .containerDefinitions = (.containerDefinitions | map(
+                  if .name == "app" then .image = $APP_IMAGE
+                  elif .name == "nginx" then .image = $NGINX_IMAGE
+                  else . end
+                ))' > task-def-${{ github.sha }}.json
+          
+          # 2. Register new task definition revision on ECS
+          NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://task-def-${{ github.sha }}.json \
+            --query "taskDefinition.taskDefinitionArn" \
+            --output text)
+          
+          echo "✅ Registered new Task Definition: $NEW_TASK_DEF_ARN"
+          echo "task_def_arn=$NEW_TASK_DEF_ARN" >> $GITHUB_OUTPUT
+
       - name: Trigger ECS Deployment & Validate Rollout
         run: |
-          echo "🚀 Triggering new deployment on Amazon ECS (pm-cluster / pm-service)..."
+          NEW_TASK_DEF_ARN="${{ steps.render-task-def.outputs.task_def_arn }}"
+          echo "🚀 Updating Amazon ECS service (pm-cluster / pm-service) to new revision: $NEW_TASK_DEF_ARN..."
           
-          # 1. Trigger deployment and capture the newly created deployment ID
+          # 1. Trigger deployment with new Task Definition (native ECS rolling rollout without --force)
           DEPLOYMENT_ID=$(aws ecs update-service \
             --cluster pm-cluster \
             --service pm-service \
-            --force-new-deployment \
+            --task-definition "$NEW_TASK_DEF_ARN" \
             --query "service.deployments[?status=='PRIMARY'].id" \
             --output text)
 
