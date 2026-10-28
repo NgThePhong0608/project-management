@@ -10,6 +10,8 @@ const TasksTable = ({
   tasks,
   queryParams = null,
   hideProjectColumn = false,
+  routeName = "task.index",
+  routeParams = {},
   success,
 }) => {
   queryParams = queryParams || {};
@@ -21,7 +23,7 @@ const TasksTable = ({
       delete queryParams[name];
     }
 
-    router.get(route("task.index", queryParams));
+    router.get(route(routeName, { ...routeParams, ...queryParams }));
   };
 
   const onKeyPress = (name, e) => {
@@ -42,7 +44,7 @@ const TasksTable = ({
       queryParams.sort_direction = "asc";
     }
 
-    router.get(route("task.index", queryParams));
+    router.get(route(routeName, { ...routeParams, ...queryParams }));
   };
 
   const deleteTask = (task) => {

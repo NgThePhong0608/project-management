@@ -84,4 +84,31 @@ class ImageUploadTest extends TestCase
         $this->assertStringStartsWith('task/', $task->image_path);
         Storage::assertExists($task->image_path);
     }
+
+    public function test_task_edit_page_renders_with_project_id_assigned_user_id_and_image_name(): void
+    {
+        $project = Project::factory()->create([
+            'created_by' => $this->manager->id,
+            'updated_by' => $this->manager->id,
+        ]);
+        $project->members()->attach($this->manager->id, ['role' => 'manager']);
+
+        $task = Task::factory()->create([
+            'project_id' => $project->id,
+            'assigned_user_id' => $this->manager->id,
+            'created_by' => $this->manager->id,
+            'image_path' => 'task/sample/my_photo.png',
+        ]);
+
+        $response = $this->actingAs($this->manager)->get(route('task.edit', $task->id));
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page
+            ->component('Task/Edit')
+            ->where('task.id', $task->id)
+            ->where('task.project_id', $project->id)
+            ->where('task.assigned_user_id', $this->manager->id)
+            ->where('task.image_name', 'my_photo.png')
+        );
+    }
 }

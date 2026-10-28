@@ -17,7 +17,7 @@ class UserPolicy
 
     public function view(User $user, User $model): bool
     {
-        return false;
+        return true;
     }
 
     public function create(User $user): bool

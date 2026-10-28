@@ -116,7 +116,7 @@ export default function NotificationDropdown() {
     }
   };
 
-  const handleMarkAsRead = async (id, taskId, event) => {
+  const handleMarkAsRead = async (id, taskId, event, targetUrl) => {
     event?.preventDefault();
     const isPersistedId = id && !String(id).startsWith("realtime-");
     try {
@@ -129,7 +129,9 @@ export default function NotificationDropdown() {
         }),
       );
       setOpen(false);
-      if (taskId) {
+      if (targetUrl) {
+        router.visit(targetUrl);
+      } else if (taskId) {
         router.visit(route("task.show", taskId));
       } else if (isPersistedId) {
         router.visit(route("notifications.show", id));
@@ -215,7 +217,12 @@ export default function NotificationDropdown() {
                   <div
                     key={item.id}
                     onClick={(e) =>
-                      handleMarkAsRead(item.id, item.data?.task_id, e)
+                      handleMarkAsRead(
+                        item.id,
+                        item.data?.task_id,
+                        e,
+                        item.data?.target_url,
+                      )
                     }
                     className={`px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition duration-150 flex items-start space-x-3 ${
                       isUnread

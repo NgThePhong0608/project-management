@@ -20,7 +20,20 @@ class ProjectPolicy
      */
     public function view(User $user, Project $project): bool
     {
-        return true;
+        if ($user->hasRole('admin')) {
+            return true;
+        }
+
+        return $project->created_by === $user->id || $project->isMember($user);
+    }
+
+    /**
+     * Admin (via Gate::before), project creator, or a member with the 'manager' role.
+     */
+    public function manageMembers(User $user, Project $project): bool
+    {
+        return $project->created_by === $user->id
+            || $project->members()->where('users.id', $user->id)->wherePivot('role', 'manager')->exists();
     }
 
     /**
@@ -36,6 +49,10 @@ class ProjectPolicy
      */
     public function update(User $user, Project $project): bool
     {
+        if (! $this->view($user, $project)) {
+            return false;
+        }
+
         return $user->hasRole('manager');
     }
 
@@ -44,6 +61,10 @@ class ProjectPolicy
      */
     public function delete(User $user, Project $project): bool
     {
+        if (! $this->view($user, $project)) {
+            return false;
+        }
+
         return $user->hasRole('manager');
     }
 }

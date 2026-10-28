@@ -21,6 +21,7 @@ export default function NotificationToast() {
         type: data?.type || "task",
         title: data?.title || "Task Assigned",
         taskId: data?.task_id,
+        targetUrl: data?.target_url,
         taskName: data?.task_name || data?.title || "New Notification",
         projectName: data?.project_name || "Project",
         assignedBy: data?.assigned_by || "Admin",
@@ -74,10 +75,13 @@ export default function NotificationToast() {
     }
 
     const taskId = toast.taskId;
+    const targetUrl = toast.targetUrl;
     const notifId = toast.id;
     handleDismiss();
 
-    if (taskId) {
+    if (targetUrl) {
+      router.visit(targetUrl);
+    } else if (taskId) {
       router.visit(route("task.show", taskId));
     } else if (notifId && !String(notifId).startsWith("realtime-")) {
       router.visit(route("notifications.show", notifId));

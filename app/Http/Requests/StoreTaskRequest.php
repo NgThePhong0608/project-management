@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Project;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -28,7 +29,16 @@ class StoreTaskRequest extends FormRequest
             'image' => ['nullable', 'image'],
             'description' => ['nullable', 'string'],
             'due_date' => ['nullable', 'date'],
-            'project_id' => ['required', 'exists:projects,id'],
+            'project_id' => [
+                'required',
+                'exists:projects,id',
+                function (string $attribute, mixed $value, \Closure $fail) {
+                    $project = Project::find($value);
+                    if (! $project || ! $this->user()->can('view', $project)) {
+                        $fail('The selected project is invalid.');
+                    }
+                },
+            ],
             'assigned_user_id' => ['required', 'exists:users,id'],
             'status' => [
                 'required',

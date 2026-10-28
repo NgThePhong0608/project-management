@@ -1,0 +1,68 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\Comment;
+use App\Models\Project;
+use App\Models\User;
+use App\Notifications\CommentNotification;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Gate;
+
+class NotificationService
+{
+    public function sendCommentNotifications(Comment $comment): void
+    {
+        $target = $comment->commentable;
+        if (! $target) {
+            return;
+        }
+
+        $author = $comment->user_id;
+        $mentioned = $comment->mentions()->with('user')->get()->pluck('user')->filter()
+            ->reject(fn (User $u) => $u->id === $author)
+            ->filter(fn (User $u) => Gate::forUser($u)->allows('view', $target))
+            ->unique('id');
+
+        foreach ($mentioned as $user) {
+            $user->notify(new CommentNotification($comment, CommentNotification::MENTIONED));
+        }
+
+        $skip = $mentioned->pluck('id')->push($author);
+
+        $this->participants($comment)
+            ->reject(fn (User $u) => $skip->contains($u->id))
+            ->filter(fn (User $u) => Gate::forUser($u)->allows('view', $target))
+            ->each(fn (User $u) => $u->notify(new CommentNotification($comment, CommentNotification::NEW_COMMENT)));
+    }
+
+    /**
+     * @return Collection<int, User>
+     */
+    protected function participants(Comment $comment): Collection
+    {
+        $target = $comment->commentable;
+        if (! $target) {
+            return collect();
+        }
+
+        if ($target instanceof Project) {
+            $project = $target;
+            $users = collect([$project->createdBy]);
+        } else {
+            $project = $target->project;
+            $users = collect([$target->assignedUser, $target->createdBy]);
+        }
+
+        if (! $project) {
+            return collect();
+        }
+
+        return $users
+            ->merge($project->members)
+            ->filter()
+            ->unique('id')
+            ->filter(fn (User $u) => Gate::forUser($u)->allows('view', $target))
+            ->values();
+    }
+}

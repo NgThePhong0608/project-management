@@ -39,6 +39,7 @@ class AuthorizationTest extends TestCase
             'created_by' => $this->manager->id,
             'updated_by' => $this->manager->id,
         ]);
+        $this->project->members()->attach([$this->member->id, $this->otherMember->id]);
 
         $this->memberTask = Task::factory()->create([
             'project_id' => $this->project->id,

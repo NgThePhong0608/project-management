@@ -57,6 +57,10 @@ class NotificationController extends Controller
             $notification->markAsRead();
         }
 
+        if (! empty($notification->data['target_url'])) {
+            return redirect($notification->data['target_url']);
+        }
+
         if (! empty($notification->data['task_id'])) {
             return redirect()->route('task.show', $notification->data['task_id']);
         }
