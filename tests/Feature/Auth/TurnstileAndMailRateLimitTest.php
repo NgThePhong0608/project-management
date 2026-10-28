@@ -38,6 +38,23 @@ class TurnstileAndMailRateLimitTest extends TestCase
         $response->assertSessionHasErrors('cf_turnstile_response');
     }
 
+    public function test_turnstile_fails_closed_when_enabled_without_secret_key(): void
+    {
+        config([
+            'services.turnstile.enabled' => true,
+            'services.turnstile.secret_key' => null,
+        ]);
+
+        $user = User::factory()->create();
+
+        $response = $this->post('/forgot-password', [
+            'email' => $user->email,
+            'cf_turnstile_response' => 'any-token',
+        ]);
+
+        $response->assertSessionHasErrors('cf_turnstile_response');
+    }
+
     public function test_forgot_password_succeeds_when_turnstile_passes(): void
     {
         Notification::fake();

@@ -32,7 +32,7 @@ export default function Edit({
   const roleKey = (user.role || "member").toLowerCase();
   const roleBadgeClass = ROLE_BADGE_MAP[roleKey] || ROLE_BADGE_MAP.member;
   const isVerified = Boolean(user.email_verified_at);
-  const idleTimeout = auth?.sessionIdleTimeout || 15;
+  const idleTimeout = auth?.sessionIdleTimeout ?? 15;
   const isAdmin = roleKey === "admin";
 
   return (
@@ -186,11 +186,17 @@ export default function Edit({
                         Auto-Logout Protection
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                        Your session automatically locks after{" "}
-                        <span className="font-semibold">
-                          {idleTimeout} minutes
-                        </span>{" "}
-                        of inactivity.
+                        {idleTimeout > 0 ? (
+                          <>
+                            Your session automatically locks after{" "}
+                            <span className="font-semibold">
+                              {idleTimeout} minutes
+                            </span>{" "}
+                            of inactivity.
+                          </>
+                        ) : (
+                          "Automatic inactivity logout is currently disabled."
+                        )}
                       </p>
                     </div>
                   </div>

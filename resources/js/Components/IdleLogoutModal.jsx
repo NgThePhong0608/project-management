@@ -1,19 +1,26 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { router, usePage } from "@inertiajs/react";
+import axios from "axios";
 import Modal from "@/Components/Modal";
 import PrimaryButton from "@/Components/PrimaryButton";
 import SecondaryButton from "@/Components/SecondaryButton";
 import { ClockIcon } from "@heroicons/react/24/outline";
 
 const STORAGE_KEY = "pm_last_activity_at";
+const SERVER_PING_STORAGE_KEY = "pm_last_server_ping_at";
 
 export default function IdleLogoutModal() {
   const { auth } = usePage().props;
-  const idleTimeoutMinutes = Number(auth?.sessionIdleTimeout || 15);
+  const idleTimeoutMinutes = Number(auth?.sessionIdleTimeout ?? 15);
   const totalIdleSeconds = idleTimeoutMinutes * 60;
   const warningThresholdSeconds = Math.min(
     60,
     Math.max(15, Math.floor(totalIdleSeconds / 3)),
+  );
+  // Ping server at most once every 2 minutes (or 1/3 of idle timeout if shorter) while user is active
+  const serverPingIntervalMs = Math.max(
+    15000,
+    Math.min(120000, Math.floor((totalIdleSeconds * 1000) / 3)),
   );
 
   const [showWarning, setShowWarning] = useState(false);
@@ -22,6 +29,7 @@ export default function IdleLogoutModal() {
   );
 
   const lastActivityRef = useRef(Date.now());
+  const lastServerPingRef = useRef(Date.now());
   const isLoggingOutRef = useRef(false);
   const showWarningRef = useRef(false);
 
@@ -29,15 +37,41 @@ export default function IdleLogoutModal() {
     showWarningRef.current = showWarning;
   }, [showWarning]);
 
-  const recordActivity = useCallback(() => {
-    const now = Date.now();
-    lastActivityRef.current = now;
-    try {
-      localStorage.setItem(STORAGE_KEY, String(now));
-    } catch {
-      // Ignore storage errors in private mode
-    }
-  }, []);
+  const pingServerKeepAlive = useCallback(
+    (force = false) => {
+      const now = Date.now();
+      if (!force && now - lastServerPingRef.current < serverPingIntervalMs) {
+        return;
+      }
+
+      lastServerPingRef.current = now;
+      try {
+        localStorage.setItem(SERVER_PING_STORAGE_KEY, String(now));
+      } catch {
+        // Ignore storage errors
+      }
+
+      axios.post(route("session.keepAlive")).catch(() => {
+        // Ignore transient network errors; next activity or interval will handle expiry
+      });
+    },
+    [serverPingIntervalMs],
+  );
+
+  const recordActivity = useCallback(
+    (forceServerPing = false) => {
+      const now = Date.now();
+      lastActivityRef.current = now;
+      try {
+        localStorage.setItem(STORAGE_KEY, String(now));
+      } catch {
+        // Ignore storage errors in private mode
+      }
+
+      pingServerKeepAlive(forceServerPing);
+    },
+    [pingServerKeepAlive],
+  );
 
   const triggerIdleLogout = useCallback(() => {
     if (isLoggingOutRef.current) return;
@@ -46,6 +80,7 @@ export default function IdleLogoutModal() {
 
     try {
       localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(SERVER_PING_STORAGE_KEY);
     } catch {
       // Ignore storage errors
     }
@@ -62,10 +97,9 @@ export default function IdleLogoutModal() {
   }, []);
 
   const handleStayLoggedIn = () => {
-    recordActivity();
+    recordActivity(true);
     setShowWarning(false);
     setRemainingSeconds(warningThresholdSeconds);
-    router.reload({ only: ["auth"] });
   };
 
   useEffect(() => {
@@ -73,7 +107,15 @@ export default function IdleLogoutModal() {
       return;
     }
 
-    recordActivity();
+    const now = Date.now();
+    lastActivityRef.current = now;
+    lastServerPingRef.current = now;
+    try {
+      localStorage.setItem(STORAGE_KEY, String(now));
+      localStorage.setItem(SERVER_PING_STORAGE_KEY, String(now));
+    } catch {
+      // Ignore storage errors
+    }
 
     let lastThrottle = 0;
     const handleUserEvent = () => {
@@ -81,10 +123,10 @@ export default function IdleLogoutModal() {
       if (showWarningRef.current || isLoggingOutRef.current) {
         return;
       }
-      const now = Date.now();
-      if (now - lastThrottle > 1000) {
-        lastThrottle = now;
-        recordActivity();
+      const currentTime = Date.now();
+      if (currentTime - lastThrottle > 1000) {
+        lastThrottle = currentTime;
+        recordActivity(false);
       }
     };
 
@@ -96,6 +138,14 @@ export default function IdleLogoutModal() {
           if (showWarningRef.current) {
             setShowWarning(false);
           }
+        }
+      } else if (event.key === SERVER_PING_STORAGE_KEY && event.newValue) {
+        const syncedPing = Number(event.newValue);
+        if (
+          !Number.isNaN(syncedPing) &&
+          syncedPing > lastServerPingRef.current
+        ) {
+          lastServerPingRef.current = syncedPing;
         }
       }
     };

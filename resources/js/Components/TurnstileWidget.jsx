@@ -9,9 +9,7 @@ export default function TurnstileWidget({ onVerify, onExpire, resetKey = 0 }) {
   const { turnstile } = usePage().props;
   const enabled = turnstile?.enabled ?? true;
   const siteKey =
-    turnstile?.siteKey ||
-    import.meta.env.VITE_TURNSTILE_SITE_KEY ||
-    "1x00000000000000000000AA";
+    turnstile?.siteKey || import.meta.env.VITE_TURNSTILE_SITE_KEY || null;
 
   const containerRef = useRef(null);
   const widgetIdRef = useRef(null);

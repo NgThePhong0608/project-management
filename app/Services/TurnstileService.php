@@ -23,7 +23,13 @@ class TurnstileService
 
         $secretKey = config('services.turnstile.secret_key');
         if (empty($secretKey)) {
-            return true;
+            Log::error('Cloudflare Turnstile is enabled but TURNSTILE_SECRET_KEY is not configured. Failing closed.');
+            $this->awsNotificationService?->logToCloudWatch('TURNSTILE_MISCONFIGURED', [
+                'reason' => 'MISSING_SECRET_KEY',
+                'ip' => $remoteIp,
+            ], 'ERROR');
+
+            return false;
         }
 
         if (empty($token)) {

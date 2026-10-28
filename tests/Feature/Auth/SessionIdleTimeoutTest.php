@@ -53,4 +53,19 @@ class SessionIdleTimeoutTest extends TestCase
             ->assertRedirect(route('login'))
             ->assertSessionHas('status', 'Your session has expired due to inactivity. Please log in again.');
     }
+
+    public function test_session_keep_alive_refreshes_last_activity_time(): void
+    {
+        config(['session.idle_timeout' => 15]);
+
+        $user = User::factory()->create();
+        $staleTimestamp = time() - (12 * 60);
+
+        $response = $this->actingAs($user)
+            ->withSession(['last_activity_time' => $staleTimestamp])
+            ->post(route('session.keepAlive'));
+
+        $response->assertNoContent();
+        $this->assertGreaterThan($staleTimestamp, session('last_activity_time'));
+    }
 }
