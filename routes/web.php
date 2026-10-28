@@ -35,14 +35,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::prefix('notifications')->group(function () {
         Route::get('/', [NotificationController::class, 'index'])
             ->name('notifications.index');
+        Route::get('/unread-count', [NotificationController::class, 'unreadCount'])
+            ->name('notifications.unreadCount');
+        Route::post('read-all', [NotificationController::class, 'markAllAsRead'])
+            ->name('notifications.readAll');
         Route::get('{id}', [NotificationController::class, 'show'])
             ->name('notifications.show');
         Route::post('{id}/read', [NotificationController::class, 'markAsRead'])
             ->name('notifications.read');
-        Route::post('read-all', [NotificationController::class, 'markAllAsRead'])
-            ->name('notifications.readAll');
-        Route::get('/unread-count', [NotificationController::class, 'unreadCount'])
-            ->name('notifications.unreadCount');
     });
 });
 

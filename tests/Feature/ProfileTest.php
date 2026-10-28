@@ -208,6 +208,34 @@ class ProfileTest extends TestCase
         Storage::assertMissing($secondCoverPath);
     }
 
+    public function test_user_can_upload_large_permitted_avatar_and_cover_together(): void
+    {
+        Storage::fake();
+
+        $user = User::factory()->create();
+        $avatar = UploadedFile::fake()->image('avatar.png')->size(1536); // 1.5 MB
+        $cover = UploadedFile::fake()->image('cover.png')->size(3072);   // 3.0 MB
+
+        $response = $this
+            ->actingAs($user)
+            ->patch('/profile', [
+                'name' => $user->name,
+                'email' => $user->email,
+                'avatar' => $avatar,
+                'cover' => $cover,
+            ]);
+
+        $response
+            ->assertSessionHasNoErrors()
+            ->assertRedirect('/profile');
+
+        $user->refresh();
+        $this->assertNotNull($user->avatar_path);
+        $this->assertNotNull($user->cover_path);
+        Storage::assertExists($user->avatar_path);
+        Storage::assertExists($user->cover_path);
+    }
+
     public function test_login_and_logout_histories_are_recorded_and_visible_to_admin(): void
     {
         $member = User::factory()->create(['role' => 'member']);

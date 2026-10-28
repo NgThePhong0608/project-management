@@ -150,4 +150,15 @@ class NotificationTest extends TestCase
         $response->assertRedirect(route('task.show', $task->id));
         $this->assertNotNull($notification->fresh()->read_at);
     }
+
+    public function test_user_can_fetch_unread_count_directly(): void
+    {
+        $user = User::factory()->create();
+        $user->notify(new PasswordChangedNotification('2026-10-28 10:00:00'));
+
+        $response = $this->actingAs($user)->getJson(route('notifications.unreadCount'));
+
+        $response->assertOk()
+            ->assertExactJson(['unreadCount' => 1]);
+    }
 }

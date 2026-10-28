@@ -6,6 +6,7 @@ services:
     restart: unless-stopped
     volumes:
       - .:/var/www
+      - ./docker/php/uploads.ini:/usr/local/etc/php/conf.d/uploads.ini:ro
 
   reverb:
     build:
