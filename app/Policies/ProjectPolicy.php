@@ -49,6 +49,10 @@ class ProjectPolicy
      */
     public function update(User $user, Project $project): bool
     {
+        if (! $this->view($user, $project)) {
+            return false;
+        }
+
         return $user->hasRole('manager');
     }
 
@@ -57,6 +61,10 @@ class ProjectPolicy
      */
     public function delete(User $user, Project $project): bool
     {
+        if (! $this->view($user, $project)) {
+            return false;
+        }
+
         return $user->hasRole('manager');
     }
 }

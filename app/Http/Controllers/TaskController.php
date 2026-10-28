@@ -211,7 +211,9 @@ class TaskController extends Controller
 
     public function myTasks()
     {
-        $query = Task::query()->where('assigned_user_id', auth()->user()->id);
+        $query = Task::query()
+            ->visibleTo(auth()->user())
+            ->where('assigned_user_id', auth()->user()->id);
         $sortField = request('sort_field', 'created_at');
         $sortDirection = request('sort_direction', 'desc');
         if (request('name')) {

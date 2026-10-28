@@ -110,7 +110,11 @@ const Show = ({ auth, user, tasks, queryParams, loginHistories = [] }) => {
                 Tasks assigned to {user.name} in projects you participate in.
               </p>
             </div>
-            {tasks && tasks.data && tasks.data.length > 0 ? (
+            {tasks &&
+            tasks.data &&
+            (tasks.data.length > 0 ||
+              queryParams?.name ||
+              queryParams?.status) ? (
               <TasksTable
                 tasks={tasks}
                 queryParams={queryParams}

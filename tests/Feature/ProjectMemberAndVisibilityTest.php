@@ -101,4 +101,38 @@ class ProjectMemberAndVisibilityTest extends TestCase
         $this->actingAs($this->outsider)->get(route('task.show', $this->task))
             ->assertInertia(fn ($p) => $p->has('comments', 0)->has('mentionable'));
     }
+
+    public function test_unrelated_manager_cannot_edit_update_or_delete_project(): void
+    {
+        $other = User::factory()->create(['role' => 'manager']);
+
+        $this->actingAs($other)->get(route('project.edit', $this->project))->assertForbidden();
+        $this->actingAs($other)->delete(route('project.destroy', $this->project))->assertForbidden();
+        $this->assertDatabaseHas('projects', ['id' => $this->project->id]);
+    }
+
+    public function test_my_tasks_hides_tasks_of_projects_user_was_removed_from(): void
+    {
+        $this->project->members()->attach($this->outsider->id);
+        $this->task->update(['assigned_user_id' => $this->outsider->id]);
+
+        $this->actingAs($this->outsider)->get(route('task.myTasks'))
+            ->assertInertia(fn ($p) => $p->has('tasks.data', 1));
+
+        $this->project->members()->detach($this->outsider->id);
+
+        $this->actingAs($this->outsider)->get(route('task.myTasks'))
+            ->assertInertia(fn ($p) => $p->has('tasks.data', 0));
+    }
+
+    public function test_cannot_create_task_in_invisible_project(): void
+    {
+        $other = User::factory()->create(['role' => 'manager']);
+
+        $this->actingAs($other)->post(route('task.store'), [
+            'name' => 'x', 'project_id' => $this->project->id,
+            'assigned_user_id' => $other->id, 'status' => 'pending', 'priority' => 'low',
+        ])->assertSessionHasErrors('project_id');
+        $this->assertSame(1, Task::count());
+    }
 }
