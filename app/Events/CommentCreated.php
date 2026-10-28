@@ -18,6 +18,12 @@ class CommentCreated implements ShouldBroadcast, ShouldDispatchAfterCommit
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
+    /**
+     * Max encoded payload size. Reverb rejects broadcast requests above 10,000 bytes
+     * (config/reverb.php max_request_size); keep headroom for the envelope.
+     */
+    public const MAX_PAYLOAD_BYTES = 8000;
+
     public function __construct(public Comment $comment) {}
 
     /**
@@ -60,6 +66,19 @@ class CommentCreated implements ShouldBroadcast, ShouldDispatchAfterCommit
     {
         $this->comment->loadMissing('user', 'mentions.user');
 
-        return ['comment' => (new CommentResource($this->comment))->resolve()];
+        $payload = ['comment' => (new CommentResource($this->comment))->resolve()];
+
+        // The payload is JSON-encoded again inside the broadcast envelope, so measure it double-encoded.
+        if (strlen(json_encode(json_encode($payload))) <= self::MAX_PAYLOAD_BYTES) {
+            return $payload;
+        }
+
+        // Too large to push: send a reference and let clients reload comments.
+        return ['comment' => [
+            'id' => $this->comment->id,
+            'commentable_type' => (new CommentResource($this->comment))->resolve()['commentable_type'],
+            'commentable_id' => $this->comment->commentable_id,
+            'truncated' => true,
+        ]];
     }
 }

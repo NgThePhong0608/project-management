@@ -369,6 +369,11 @@ export default function CommentSection({
         e?.comment?.commentable_type === type &&
         Number(e?.comment?.commentable_id) === Number(id)
       ) {
+        if (e.comment.truncated) {
+          // Payload was too large to broadcast; fetch the comments from the server.
+          router.reload({ only: ["comments"], preserveScroll: true });
+          return;
+        }
         setComments((prev) =>
           prev.some((c) => c.id === e.comment.id) ? prev : [...prev, e.comment],
         );

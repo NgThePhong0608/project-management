@@ -218,4 +218,18 @@ class CommentAndMentionNotificationTest extends TestCase
         $job->handle(app(NotificationService::class));
         $this->assertSame(0, Comment::count());
     }
+
+    public function test_broadcast_payload_stays_under_reverb_limit_for_huge_comment(): void
+    {
+        $huge = str_repeat('😀', 5000);
+        $comment = $this->task->comments()->create(['user_id' => $this->author->id, 'body' => $huge]);
+        $payload = (new CommentCreated($comment))->broadcastWith();
+
+        $this->assertTrue($payload['comment']['truncated']);
+        $this->assertSame($comment->id, $payload['comment']['id']);
+        $this->assertLessThan(10000, strlen(json_encode(json_encode($payload))));
+
+        $small = $this->task->comments()->create(['user_id' => $this->author->id, 'body' => 'hi']);
+        $this->assertSame('hi', (new CommentCreated($small))->broadcastWith()['comment']['body']);
+    }
 }
