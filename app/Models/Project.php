@@ -24,6 +24,20 @@ class Project extends Model
         'updated_by',
     ];
 
+    protected static function booted(): void
+    {
+        static::deleting(function (Project $project): void {
+            $taskIds = $project->tasks()->pluck('id');
+            if ($taskIds->isNotEmpty()) {
+                Comment::where('commentable_type', Task::class)
+                    ->whereIn('commentable_id', $taskIds)
+                    ->delete();
+            }
+
+            $project->comments()->delete();
+        });
+    }
+
     public function tasks(): HasMany
     {
         return $this->hasMany(Task::class);

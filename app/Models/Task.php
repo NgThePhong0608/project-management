@@ -25,6 +25,13 @@ class Task extends Model
         'project_id',
     ];
 
+    protected static function booted(): void
+    {
+        static::deleting(function (Task $task): void {
+            $task->comments()->delete();
+        });
+    }
+
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);

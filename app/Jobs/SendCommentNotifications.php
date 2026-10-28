@@ -19,7 +19,7 @@ class SendCommentNotifications implements ShouldQueue
     public function handle(NotificationService $notifications): void
     {
         $comment = Comment::find($this->commentId);
-        if (! $comment) {
+        if (! $comment || ! $comment->commentable) {
             return;
         }
 

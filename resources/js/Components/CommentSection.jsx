@@ -359,21 +359,26 @@ export default function CommentSection({
 
   useEffect(() => setComments(initial), [initial]);
 
-  // Realtime: new comments from other users
+  // Realtime: new comments delivered via the user's currently authorized private channel
   useEffect(() => {
-    if (!window.Echo) return;
-    const channelName = `${type}.${id}`;
+    if (!window.Echo || !auth?.user?.id) return;
+    const channelName = `App.Models.User.${auth.user.id}`;
     const channel = window.Echo.private(channelName);
-    channel.listen(".comment.created", (e) =>
-      setComments((prev) =>
-        prev.some((c) => c.id === e.comment.id) ? prev : [...prev, e.comment],
-      ),
-    );
-    return () => {
-      channel.stopListening(".comment.created");
-      window.Echo.leave(channelName);
+    const handleCommentCreated = (e) => {
+      if (
+        e?.comment?.commentable_type === type &&
+        Number(e?.comment?.commentable_id) === Number(id)
+      ) {
+        setComments((prev) =>
+          prev.some((c) => c.id === e.comment.id) ? prev : [...prev, e.comment],
+        );
+      }
     };
-  }, [type, id]);
+    channel.listen(".comment.created", handleCommentCreated);
+    return () => {
+      channel.stopListening(".comment.created", handleCommentCreated);
+    };
+  }, [type, id, auth?.user?.id]);
 
   const isPrivileged = ["admin", "manager"].includes(auth.user.role);
   const canDelete = (c) => isPrivileged || c.author.id === auth.user.id;

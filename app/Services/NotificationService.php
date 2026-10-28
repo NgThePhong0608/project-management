@@ -7,14 +7,22 @@ use App\Models\Project;
 use App\Models\User;
 use App\Notifications\CommentNotification;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Gate;
 
 class NotificationService
 {
     public function sendCommentNotifications(Comment $comment): void
     {
+        $target = $comment->commentable;
+        if (! $target) {
+            return;
+        }
+
         $author = $comment->user_id;
         $mentioned = $comment->mentions()->with('user')->get()->pluck('user')->filter()
-            ->reject(fn (User $u) => $u->id === $author)->unique('id');
+            ->reject(fn (User $u) => $u->id === $author)
+            ->filter(fn (User $u) => Gate::forUser($u)->allows('view', $target))
+            ->unique('id');
 
         foreach ($mentioned as $user) {
             $user->notify(new CommentNotification($comment, CommentNotification::MENTIONED));
@@ -24,6 +32,7 @@ class NotificationService
 
         $this->participants($comment)
             ->reject(fn (User $u) => $skip->contains($u->id))
+            ->filter(fn (User $u) => Gate::forUser($u)->allows('view', $target))
             ->each(fn (User $u) => $u->notify(new CommentNotification($comment, CommentNotification::NEW_COMMENT)));
     }
 
@@ -45,6 +54,15 @@ class NotificationService
             $users = collect([$target->assignedUser, $target->createdBy]);
         }
 
-        return $users->merge($project->members)->filter()->unique('id')->values();
+        if (! $project) {
+            return collect();
+        }
+
+        return $users
+            ->merge($project->members)
+            ->filter()
+            ->unique('id')
+            ->filter(fn (User $u) => Gate::forUser($u)->allows('view', $target))
+            ->values();
     }
 }

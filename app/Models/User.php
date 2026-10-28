@@ -90,4 +90,31 @@ class User extends Authenticatable implements MustVerifyEmail
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
     ];
+
+    protected static function booted(): void
+    {
+        static::deleting(function (User $user): void {
+            $projectIds = Project::where('created_by', $user->id)
+                ->orWhere('updated_by', $user->id)
+                ->pluck('id');
+
+            $taskIds = Task::where('created_by', $user->id)
+                ->orWhere('updated_by', $user->id)
+                ->orWhere('assigned_user_id', $user->id)
+                ->when($projectIds->isNotEmpty(), fn ($q) => $q->orWhereIn('project_id', $projectIds))
+                ->pluck('id');
+
+            if ($taskIds->isNotEmpty()) {
+                Comment::where('commentable_type', Task::class)
+                    ->whereIn('commentable_id', $taskIds)
+                    ->delete();
+            }
+
+            if ($projectIds->isNotEmpty()) {
+                Comment::where('commentable_type', Project::class)
+                    ->whereIn('commentable_id', $projectIds)
+                    ->delete();
+            }
+        });
+    }
 }
