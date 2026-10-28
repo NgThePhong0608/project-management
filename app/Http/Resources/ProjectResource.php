@@ -27,11 +27,13 @@ class ProjectResource extends JsonResource
             'due_date' => (new Carbon($this->due_date))->format('Y-m-d H:i:s'),
             'status' => $this->status,
             'image_path' => $this->image_path ? Storage::url($this->image_path) : '',
+            'image_name' => $this->image_path ? basename($this->image_path) : null,
             'createdBy' => new UserResource($this->createdBy),
             'updatedBy' => new UserResource($this->updatedBy),
             'can' => [
                 'update' => $request->user()?->can('update', $this->resource),
                 'delete' => $request->user()?->can('delete', $this->resource),
+                'manageMembers' => $request->user()?->can('manageMembers', $this->resource),
             ],
         ];
     }

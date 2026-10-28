@@ -1,9 +1,11 @@
 <?php
 
+use App\Http\Controllers\CommentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\ProjectMemberController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\UserController;
 use Illuminate\Foundation\Application;
@@ -27,9 +29,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('dashboard');
 
     Route::resource('project', ProjectController::class);
+    Route::post('/project/{project}/members', [ProjectMemberController::class, 'store'])
+        ->name('project.members.store');
+    Route::delete('/project/{project}/members/{user}', [ProjectMemberController::class, 'destroy'])
+        ->name('project.members.destroy');
     Route::get('/task/my-tasks', [TaskController::class, 'myTasks'])
         ->name('task.myTasks');
     Route::resource('task', TaskController::class);
+    Route::post('/comments', [CommentController::class, 'store'])->name('comments.store');
+    Route::delete('/comments/{comment}', [CommentController::class, 'destroy'])->name('comments.destroy');
     Route::resource('user', UserController::class);
 
     Route::prefix('notifications')->group(function () {

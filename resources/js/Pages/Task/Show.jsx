@@ -1,4 +1,5 @@
 import React from "react";
+import CommentSection from "@/Components/CommentSection";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head, Link } from "@inertiajs/react";
 import {
@@ -8,7 +9,7 @@ import {
   TASK_STATUS_TEXT_MAP,
 } from "@/constants.jsx";
 
-const Show = ({ auth, task }) => {
+const Show = ({ auth, task, comments, mentionable }) => {
   return (
     <AuthenticatedLayout
       user={auth.user}
@@ -119,6 +120,19 @@ const Show = ({ auth, task }) => {
                 <p className="mt-1">{task.description}</p>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="pb-12">
+        <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
+          <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
+            <CommentSection
+              type="task"
+              id={task.id}
+              comments={comments}
+              mentionable={mentionable}
+            />
           </div>
         </div>
       </div>

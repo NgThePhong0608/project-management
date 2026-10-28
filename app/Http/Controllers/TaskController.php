@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreTaskRequest;
 use App\Http\Requests\UpdateTaskRequest;
+use App\Http\Resources\CommentResource;
 use App\Http\Resources\ProjectResource;
 use App\Http\Resources\TaskResource;
 use App\Http\Resources\UserResource;
@@ -66,7 +67,7 @@ class TaskController extends Controller
      */
     public function index()
     {
-        $query = Task::query();
+        $query = Task::query()->visibleTo(auth()->user());
 
         $sortField = request('sort_field', 'created_at');
         $sortDirection = request('sort_direction', 'desc');
@@ -90,7 +91,7 @@ class TaskController extends Controller
      */
     public function create()
     {
-        $projects = Project::query()->orderBy('name', 'asc')->get();
+        $projects = Project::query()->visibleTo(auth()->user())->orderBy('name', 'asc')->get();
         $users = User::query()->orderBy('name', 'asc')->get();
 
         return inertia('Task/Create', [
@@ -129,8 +130,19 @@ class TaskController extends Controller
      */
     public function show(Task $task)
     {
+        $task->load('project.members', 'project.createdBy', 'assignedUser', 'createdBy');
+        $mentionable = $task->project->members
+            ->concat([$task->project->createdBy, $task->assignedUser, $task->createdBy])
+            ->filter()->unique('id')
+            ->map(fn ($u) => ['id' => $u->id, 'name' => $u->name, 'email' => $u->email, 'avatar_url' => $u->avatar_url])
+            ->values();
+
         return inertia('Task/Show', [
             'task' => new TaskResource($task),
+            'mentionable' => $mentionable,
+            'comments' => CommentResource::collection(
+                $task->comments()->with('user', 'mentions.user')->oldest()->get()
+            )->resolve(),
         ]);
     }
 
@@ -139,7 +151,7 @@ class TaskController extends Controller
      */
     public function edit(Task $task)
     {
-        $projects = Project::query()->orderBy('name', 'asc')->get();
+        $projects = Project::query()->visibleTo(auth()->user())->orderBy('name', 'asc')->get();
         $users = User::query()->orderBy('name', 'asc')->get();
 
         return inertia('Task/Edit', [

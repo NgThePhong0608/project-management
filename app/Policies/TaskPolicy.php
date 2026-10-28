@@ -20,7 +20,7 @@ class TaskPolicy
      */
     public function view(User $user, Task $task): bool
     {
-        return true;
+        return $task->isParticipant($user);
     }
 
     /**
@@ -36,6 +36,10 @@ class TaskPolicy
      */
     public function update(User $user, Task $task): bool
     {
+        if (! $this->view($user, $task)) {
+            return false;
+        }
+
         return $user->hasRole('manager') || $task->assigned_user_id === $user->id;
     }
 
@@ -44,6 +48,10 @@ class TaskPolicy
      */
     public function delete(User $user, Task $task): bool
     {
+        if (! $this->view($user, $task)) {
+            return false;
+        }
+
         return $user->hasRole('manager');
     }
 }

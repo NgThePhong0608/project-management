@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
+use App\Http\Resources\TaskResource;
 use App\Http\Resources\UserResource;
+use App\Models\Task;
 use App\Models\User;
 
 class UserController extends Controller
@@ -69,20 +71,41 @@ class UserController extends Controller
      */
     public function show(User $user)
     {
-        $loginHistories = $user->loginHistories()
-            ->take(20)
-            ->get()
-            ->map(fn ($item) => [
-                'id' => $item->id,
-                'event' => $item->event,
-                'ip_address' => $item->ip_address,
-                'user_agent' => $item->user_agent,
-                'occurred_at' => $item->occurred_at?->format('Y-m-d H:i:s'),
-                'occurred_at_human' => $item->occurred_at?->diffForHumans(),
-            ]);
+        $viewer = auth()->user();
+        $isPrivileged = $viewer && ($viewer->hasRole('admin') || $viewer->id === $user->id);
+
+        $loginHistories = $isPrivileged
+            ? $user->loginHistories()
+                ->take(20)
+                ->get()
+                ->map(fn ($item) => [
+                    'id' => $item->id,
+                    'event' => $item->event,
+                    'ip_address' => $item->ip_address,
+                    'user_agent' => $item->user_agent,
+                    'occurred_at' => $item->occurred_at?->format('Y-m-d H:i:s'),
+                    'occurred_at_human' => $item->occurred_at?->diffForHumans(),
+                ])
+            : [];
+
+        $taskQuery = Task::query()
+            ->where('assigned_user_id', $user->id)
+            ->visibleTo($viewer);
+
+        $sortField = request('sort_field', 'created_at');
+        $sortDirection = request('sort_direction', 'desc');
+        if (request('name')) {
+            $taskQuery->where('name', 'like', '%'.request('name').'%');
+        }
+        if (request('status')) {
+            $taskQuery->where('status', request('status'));
+        }
+        $tasks = $taskQuery->orderBy($sortField, $sortDirection)->paginate(10)->onEachSide(1);
 
         return inertia('User/Show', [
             'user' => new UserResource($user),
+            'tasks' => TaskResource::collection($tasks),
+            'queryParams' => request()->query() ?: null,
             'loginHistories' => $loginHistories,
         ]);
     }

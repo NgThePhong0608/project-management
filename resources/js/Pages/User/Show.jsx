@@ -2,8 +2,9 @@ import React from "react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head, Link } from "@inertiajs/react";
 import LoginHistoryList from "@/Pages/Profile/Partials/LoginHistoryList";
+import TasksTable from "@/Pages/Task/TasksTable";
 
-const Show = ({ auth, user, loginHistories = [] }) => {
+const Show = ({ auth, user, tasks, queryParams, loginHistories = [] }) => {
   return (
     <AuthenticatedLayout
       user={auth.user}
@@ -12,12 +13,22 @@ const Show = ({ auth, user, loginHistories = [] }) => {
           <h2 className="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
             {`User "${user.name}"`}
           </h2>
-          <Link
-            href={route("user.edit", user.id)}
-            className="bg-emerald-500 py-1.5 px-3 text-sm text-white rounded shadow transition-all hover:bg-emerald-600"
-          >
-            Edit User
-          </Link>
+          {auth.user.role === "admin" && (
+            <Link
+              href={route("user.edit", user.id)}
+              className="bg-emerald-500 py-1.5 px-3 text-sm text-white rounded shadow transition-all hover:bg-emerald-600"
+            >
+              Edit User
+            </Link>
+          )}
+          {auth.user.role !== "admin" && auth.user.id === user.id && (
+            <Link
+              href={route("profile.edit")}
+              className="bg-indigo-600 py-1.5 px-3 text-sm text-white rounded shadow transition-all hover:bg-indigo-700"
+            >
+              Edit Profile
+            </Link>
+          )}
         </div>
       }
     >
@@ -89,15 +100,42 @@ const Show = ({ auth, user, loginHistories = [] }) => {
             </div>
           </div>
 
-          {/* User Login & Logout History Card */}
-          <div className="p-6 sm:p-8 bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-2xl border border-gray-100 dark:border-gray-700">
-            <LoginHistoryList
-              title={`Login & Logout History — ${user.name}`}
-              description="Audit trail of recent sign-in, sign-out, and automatic inactivity logout events for this user."
-              histories={loginHistories}
-              showUserColumn={false}
-            />
+          {/* Assigned Tasks Card */}
+          <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-2xl border border-gray-100 dark:border-gray-700 p-6 sm:p-8">
+            <div className="mb-4">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                Assigned Tasks
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Tasks assigned to {user.name} in projects you participate in.
+              </p>
+            </div>
+            {tasks && tasks.data && tasks.data.length > 0 ? (
+              <TasksTable
+                tasks={tasks}
+                queryParams={queryParams}
+                hideProjectColumn={false}
+                routeName="user.show"
+                routeParams={{ user: user.id }}
+              />
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-gray-400 py-4">
+                No tasks assigned to this user in your shared projects.
+              </p>
+            )}
           </div>
+
+          {/* User Login & Logout History Card - only visible to admin or self */}
+          {loginHistories && loginHistories.length > 0 && (
+            <div className="p-6 sm:p-8 bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-2xl border border-gray-100 dark:border-gray-700">
+              <LoginHistoryList
+                title={`Login & Logout History — ${user.name}`}
+                description="Audit trail of recent sign-in, sign-out, and automatic inactivity logout events for this user."
+                histories={loginHistories}
+                showUserColumn={false}
+              />
+            </div>
+          )}
         </div>
       </div>
     </AuthenticatedLayout>

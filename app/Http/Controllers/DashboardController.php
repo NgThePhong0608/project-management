@@ -25,22 +25,22 @@ class DashboardController extends Controller
         // Cache user-specific task stats in Redis (TTL 60s)
         $userCounts = Cache::remember("dashboard_user_stats_{$user->id}", 60, function () use ($user) {
             return [
-                'myPendingTasks' => Task::query()
+                'myPendingTasks' => Task::query()->visibleTo($user)
                     ->where('status', 'pending')
                     ->where('assigned_user_id', $user->id)
                     ->count(),
-                'myProgressTasks' => Task::query()
+                'myProgressTasks' => Task::query()->visibleTo($user)
                     ->where('status', 'in_progress')
                     ->where('assigned_user_id', $user->id)
                     ->count(),
-                'myCompletedTasks' => Task::query()
+                'myCompletedTasks' => Task::query()->visibleTo($user)
                     ->where('status', 'completed')
                     ->where('assigned_user_id', $user->id)
                     ->count(),
             ];
         });
 
-        $activeTasks = Task::query()
+        $activeTasks = Task::query()->visibleTo($user)
             ->whereIn('status', ['pending', 'in_progress'])
             ->where('assigned_user_id', $user->id)
             ->limit(10)
