@@ -4,7 +4,7 @@ import InputError from "@/Components/InputError";
 import InputLabel from "@/Components/InputLabel";
 import PrimaryButton from "@/Components/PrimaryButton";
 import TextInput from "@/Components/TextInput";
-import { Head, useForm } from "@inertiajs/react";
+import { Head, Link, useForm } from "@inertiajs/react";
 
 export default function ResetPassword({ token, email }) {
   const { data, setData, post, processing, errors, reset } = useForm({
@@ -30,6 +30,11 @@ export default function ResetPassword({ token, email }) {
     <GuestLayout>
       <Head title="Reset Password" />
 
+      <div className="mb-4 text-sm text-gray-600 dark:text-gray-400">
+        Please enter your new password below to complete the password reset
+        process.
+      </div>
+
       <form onSubmit={submit}>
         <div>
           <InputLabel htmlFor="email" value="Email" />
@@ -48,7 +53,7 @@ export default function ResetPassword({ token, email }) {
         </div>
 
         <div className="mt-4">
-          <InputLabel htmlFor="password" value="Password" />
+          <InputLabel htmlFor="password" value="New Password" />
 
           <TextInput
             id="password"
@@ -67,10 +72,11 @@ export default function ResetPassword({ token, email }) {
         <div className="mt-4">
           <InputLabel
             htmlFor="password_confirmation"
-            value="Confirm Password"
+            value="Confirm New Password"
           />
 
           <TextInput
+            id="password_confirmation"
             type="password"
             name="password_confirmation"
             value={data.password_confirmation}
@@ -82,9 +88,16 @@ export default function ResetPassword({ token, email }) {
           <InputError message={errors.password_confirmation} className="mt-2" />
         </div>
 
-        <div className="flex items-center justify-end mt-4">
+        <div className="flex items-center justify-between mt-4">
+          <Link
+            href={route("login")}
+            className="underline text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800"
+          >
+            Back to Log in
+          </Link>
+
           <PrimaryButton className="ms-4" disabled={processing}>
-            Reset Password
+            {processing ? "Resetting..." : "Reset Password"}
           </PrimaryButton>
         </div>
       </form>

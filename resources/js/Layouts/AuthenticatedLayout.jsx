@@ -4,6 +4,7 @@ import Dropdown from "@/Components/Dropdown";
 import NavLink from "@/Components/NavLink";
 import NotificationDropdown from "@/Components/NotificationDropdown";
 import NotificationToast from "@/Components/NotificationToast";
+import IdleLogoutModal from "@/Components/IdleLogoutModal";
 import ResponsiveNavLink from "@/Components/ResponsiveNavLink";
 import { Link, usePage } from "@inertiajs/react";
 
@@ -96,6 +97,17 @@ export default function Authenticated({ user, header, children }) {
                         type="button"
                         className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none transition ease-in-out duration-150"
                       >
+                        {user.avatar_url ? (
+                          <img
+                            src={user.avatar_url}
+                            alt={user.name}
+                            className="h-7 w-7 rounded-full object-cover me-2 ring-1 ring-gray-200 dark:ring-gray-700"
+                          />
+                        ) : (
+                          <span className="h-7 w-7 rounded-full bg-indigo-600 text-white text-xs font-bold flex items-center justify-center me-2 uppercase">
+                            {user.name?.charAt(0) || "U"}
+                          </span>
+                        )}
                         {user.name}
 
                         <svg
@@ -221,6 +233,7 @@ export default function Authenticated({ user, header, children }) {
       <main>{children}</main>
 
       <NotificationToast />
+      <IdleLogoutModal />
     </div>
   );
 }

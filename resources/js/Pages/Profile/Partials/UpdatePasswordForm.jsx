@@ -5,6 +5,7 @@ import PrimaryButton from "@/Components/PrimaryButton";
 import TextInput from "@/Components/TextInput";
 import { useForm } from "@inertiajs/react";
 import { Transition } from "@headlessui/react";
+import { CheckCircleIcon } from "@heroicons/react/24/outline";
 
 export default function UpdatePasswordForm({ className = "" }) {
   const passwordInput = useRef();
@@ -39,8 +40,8 @@ export default function UpdatePasswordForm({ className = "" }) {
 
   return (
     <section className={className}>
-      <header>
-        <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">
+      <header className="pb-4 border-b border-gray-100 dark:border-gray-700">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
           Update Password
         </h2>
 
@@ -66,42 +67,49 @@ export default function UpdatePasswordForm({ className = "" }) {
           <InputError message={errors.current_password} className="mt-2" />
         </div>
 
-        <div>
-          <InputLabel htmlFor="password" value="New Password" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div>
+            <InputLabel htmlFor="password" value="New Password" />
 
-          <TextInput
-            id="password"
-            ref={passwordInput}
-            value={data.password}
-            onChange={(e) => setData("password", e.target.value)}
-            type="password"
-            className="mt-1 block w-full"
-            autoComplete="new-password"
-          />
+            <TextInput
+              id="password"
+              ref={passwordInput}
+              value={data.password}
+              onChange={(e) => setData("password", e.target.value)}
+              type="password"
+              className="mt-1 block w-full"
+              autoComplete="new-password"
+            />
 
-          <InputError message={errors.password} className="mt-2" />
+            <InputError message={errors.password} className="mt-2" />
+          </div>
+
+          <div>
+            <InputLabel
+              htmlFor="password_confirmation"
+              value="Confirm Password"
+            />
+
+            <TextInput
+              id="password_confirmation"
+              value={data.password_confirmation}
+              onChange={(e) => setData("password_confirmation", e.target.value)}
+              type="password"
+              className="mt-1 block w-full"
+              autoComplete="new-password"
+            />
+
+            <InputError
+              message={errors.password_confirmation}
+              className="mt-2"
+            />
+          </div>
         </div>
 
-        <div>
-          <InputLabel
-            htmlFor="password_confirmation"
-            value="Confirm Password"
-          />
-
-          <TextInput
-            id="password_confirmation"
-            value={data.password_confirmation}
-            onChange={(e) => setData("password_confirmation", e.target.value)}
-            type="password"
-            className="mt-1 block w-full"
-            autoComplete="new-password"
-          />
-
-          <InputError message={errors.password_confirmation} className="mt-2" />
-        </div>
-
-        <div className="flex items-center gap-4">
-          <PrimaryButton disabled={processing}>Save</PrimaryButton>
+        <div className="flex items-center gap-4 pt-2">
+          <PrimaryButton disabled={processing}>
+            {processing ? "Updating..." : "Update Password"}
+          </PrimaryButton>
 
           <Transition
             show={recentlySuccessful}
@@ -110,7 +118,10 @@ export default function UpdatePasswordForm({ className = "" }) {
             leave="transition ease-in-out"
             leaveTo="opacity-0"
           >
-            <p className="text-sm text-gray-600 dark:text-gray-400">Saved.</p>
+            <p className="inline-flex items-center text-sm font-medium text-emerald-600 dark:text-emerald-400">
+              <CheckCircleIcon className="w-4 h-4 me-1" />
+              Password updated.
+            </p>
           </Transition>
         </div>
       </form>

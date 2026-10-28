@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class NotificationController extends Controller
 {
@@ -31,6 +33,43 @@ class NotificationController extends Controller
         return response()->json([
             'notifications' => $notifications,
             'unreadCount' => $user->unreadNotifications()->count(),
+        ]);
+    }
+
+    /**
+     * Get the unread notification count for the authenticated user.
+     */
+    public function unreadCount(Request $request): JsonResponse
+    {
+        return response()->json([
+            'unreadCount' => $request->user()->unreadNotifications()->count(),
+        ]);
+    }
+
+    /**
+     * Display the specified notification detail page.
+     */
+    public function show(Request $request, string $id): Response|RedirectResponse
+    {
+        $notification = $request->user()->notifications()->findOrFail($id);
+
+        if (is_null($notification->read_at)) {
+            $notification->markAsRead();
+        }
+
+        if (! empty($notification->data['task_id'])) {
+            return redirect()->route('task.show', $notification->data['task_id']);
+        }
+
+        return Inertia::render('Notification/Show', [
+            'notification' => [
+                'id' => $notification->id,
+                'type' => $notification->type,
+                'data' => $notification->data,
+                'read_at' => $notification->read_at?->format('Y-m-d H:i:s'),
+                'created_at' => $notification->created_at->format('Y-m-d H:i:s'),
+                'created_at_human' => $notification->created_at->diffForHumans(),
+            ],
         ]);
     }
 

@@ -32,17 +32,24 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('task', TaskController::class);
     Route::resource('user', UserController::class);
 
-    Route::get('/notifications', [NotificationController::class, 'index'])
-        ->name('notifications.index');
-    Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead'])
-        ->name('notifications.read');
-    Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])
-        ->name('notifications.readAll');
+    Route::prefix('notifications')->group(function () {
+        Route::get('/', [NotificationController::class, 'index'])
+            ->name('notifications.index');
+        Route::get('/unread-count', [NotificationController::class, 'unreadCount'])
+            ->name('notifications.unreadCount');
+        Route::post('read-all', [NotificationController::class, 'markAllAsRead'])
+            ->name('notifications.readAll');
+        Route::get('{id}', [NotificationController::class, 'show'])
+            ->name('notifications.show');
+        Route::post('{id}/read', [NotificationController::class, 'markAsRead'])
+            ->name('notifications.read');
+    });
 });
 
 Route::middleware('auth')->group(function () {
+    Route::post('/session/keep-alive', fn () => response()->noContent())->name('session.keepAlive');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::match(['patch', 'post'], '/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 

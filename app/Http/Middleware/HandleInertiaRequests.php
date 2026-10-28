@@ -39,11 +39,16 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $user,
                 'unreadNotificationsCount' => $user ? $user->unreadNotifications()->count() : 0,
+                'sessionIdleTimeout' => (int) config('session.idle_timeout', 15),
                 'can' => $user ? [
                     'createProject' => $user->can('create', Project::class),
                     'createTask' => $user->can('create', Task::class),
                     'manageUsers' => $user->can('viewAny', User::class),
                 ] : [],
+            ],
+            'turnstile' => [
+                'enabled' => (bool) config('services.turnstile.enabled', true),
+                'siteKey' => config('services.turnstile.site_key'),
             ],
         ];
     }
