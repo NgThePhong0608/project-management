@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Models\LoginHistory;
 use App\Providers\RouteServiceProvider;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -33,6 +34,11 @@ class AuthenticatedSessionController extends Controller
         $request->authenticate();
 
         $request->session()->regenerate();
+        $request->session()->put('last_activity_time', time());
+
+        if ($user = $request->user()) {
+            LoginHistory::record($user, 'login', $request);
+        }
 
         return redirect()->intended(RouteServiceProvider::HOME);
     }
@@ -42,11 +48,24 @@ class AuthenticatedSessionController extends Controller
      */
     public function destroy(Request $request): RedirectResponse
     {
+        $isIdleLogout = $request->boolean('idle') || $request->input('reason') === 'idle';
+
+        if ($user = $request->user()) {
+            LoginHistory::record($user, $isIdleLogout ? 'idle_logout' : 'logout', $request);
+        }
+
         Auth::guard('web')->logout();
 
         $request->session()->invalidate();
 
         $request->session()->regenerateToken();
+
+        if ($isIdleLogout) {
+            return redirect()->route('login')->with(
+                'status',
+                'Your session has expired due to inactivity. Please log in again.'
+            );
+        }
 
         return redirect('/');
     }

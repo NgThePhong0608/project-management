@@ -118,8 +118,11 @@ export default function NotificationDropdown() {
 
   const handleMarkAsRead = async (id, taskId, event) => {
     event?.preventDefault();
+    const isPersistedId = id && !String(id).startsWith("realtime-");
     try {
-      await axios.post(route("notifications.read", id));
+      if (isPersistedId) {
+        await axios.post(route("notifications.read", id));
+      }
       window.dispatchEvent(
         new CustomEvent("app:notification-marked-read", {
           detail: { id },
@@ -128,6 +131,8 @@ export default function NotificationDropdown() {
       setOpen(false);
       if (taskId) {
         router.visit(route("task.show", taskId));
+      } else if (isPersistedId) {
+        router.visit(route("notifications.show", id));
       }
     } catch (error) {
       console.error("Failed to mark notification as read:", error);
@@ -232,7 +237,9 @@ export default function NotificationDropdown() {
                     {/* Content */}
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium text-gray-900 dark:text-gray-100 truncate">
-                        {item.data?.task_name || "New Task"}
+                        {item.data?.task_name ||
+                          item.data?.title ||
+                          "Notification"}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mt-0.5">
                         {item.data?.message ||

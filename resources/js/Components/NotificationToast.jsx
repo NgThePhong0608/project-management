@@ -18,8 +18,10 @@ export default function NotificationToast() {
 
       setToast({
         id: payload?.id,
+        type: data?.type || "task",
+        title: data?.title || "Task Assigned",
         taskId: data?.task_id,
-        taskName: data?.task_name || "New Task",
+        taskName: data?.task_name || data?.title || "New Notification",
         projectName: data?.project_name || "Project",
         assignedBy: data?.assigned_by || "Admin",
         priority: data?.priority,
@@ -72,10 +74,13 @@ export default function NotificationToast() {
     }
 
     const taskId = toast.taskId;
+    const notifId = toast.id;
     handleDismiss();
 
     if (taskId) {
       router.visit(route("task.show", taskId));
+    } else if (notifId && !String(notifId).startsWith("realtime-")) {
+      router.visit(route("notifications.show", notifId));
     }
   };
 
@@ -96,7 +101,7 @@ export default function NotificationToast() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
-              Task Assigned
+              {toast.title || "Task Assigned"}
             </p>
             <button
               onClick={handleDismiss}
@@ -120,12 +125,12 @@ export default function NotificationToast() {
               {toast.projectName}
             </span>
 
-            {toast.taskId && (
+            {(toast.taskId || toast.id) && (
               <button
                 onClick={handleView}
                 className="inline-flex items-center space-x-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition"
               >
-                <span>View Task</span>
+                <span>{toast.taskId ? "View Task" : "View Details"}</span>
                 <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5" />
               </button>
             )}

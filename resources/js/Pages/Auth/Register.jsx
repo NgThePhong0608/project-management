@@ -1,17 +1,20 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import GuestLayout from "@/Layouts/GuestLayout";
 import InputError from "@/Components/InputError";
 import InputLabel from "@/Components/InputLabel";
 import PrimaryButton from "@/Components/PrimaryButton";
 import TextInput from "@/Components/TextInput";
+import TurnstileWidget from "@/Components/TurnstileWidget";
 import { Head, Link, useForm } from "@inertiajs/react";
 
 export default function Register() {
+  const [resetKey, setResetKey] = useState(0);
   const { data, setData, post, processing, errors, reset } = useForm({
     name: "",
     email: "",
     password: "",
     password_confirmation: "",
+    cf_turnstile_response: "",
   });
 
   useEffect(() => {
@@ -23,7 +26,12 @@ export default function Register() {
   const submit = (e) => {
     e.preventDefault();
 
-    post(route("register"));
+    post(route("register"), {
+      onError: () => {
+        setData("cf_turnstile_response", "");
+        setResetKey((prev) => prev + 1);
+      },
+    });
   };
 
   return (
@@ -101,6 +109,12 @@ export default function Register() {
 
           <InputError message={errors.password_confirmation} className="mt-2" />
         </div>
+
+        <TurnstileWidget
+          resetKey={resetKey}
+          onVerify={(token) => setData("cf_turnstile_response", token)}
+        />
+        <InputError message={errors.cf_turnstile_response} className="mt-2" />
 
         <div className="flex items-center justify-end mt-4">
           <Link

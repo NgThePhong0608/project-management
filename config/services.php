@@ -40,4 +40,10 @@ return [
         'cloudwatch_log_stream' => env('CLOUDWATCH_LOG_STREAM', 'notifications'),
     ],
 
+    'turnstile' => [
+        'enabled' => filter_var(env('TURNSTILE_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+        'site_key' => env('TURNSTILE_SITE_KEY', '1x00000000000000000000AA'),
+        'secret_key' => env('TURNSTILE_SECRET_KEY', '1x0000000000000000000000000000000AA'),
+    ],
+
 ];

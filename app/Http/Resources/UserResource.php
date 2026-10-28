@@ -22,6 +22,8 @@ class UserResource extends JsonResource
             'name' => $this->name,
             'email' => $this->email,
             'role' => $this->role,
+            'avatar_url' => $this->avatar_url,
+            'cover_url' => $this->cover_url,
             'created_at' => (new Carbon($this->created_at))->format('Y-m-d H:i:s'),
         ];
     }

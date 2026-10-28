@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Project;
 use App\Models\Task;
 use App\Models\User;
+use App\Notifications\PasswordChangedNotification;
 use App\Notifications\TaskAssignedNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Notifications\Messages\BroadcastMessage;
@@ -116,5 +117,37 @@ class NotificationTest extends TestCase
         $this->assertEquals('Realtime Notification Task', $broadcastMessage->data['task_name']);
         $this->assertEquals($task->id, $broadcastMessage->data['task_id']);
         $this->assertArrayHasKey('data', $broadcastMessage->data);
+    }
+
+    public function test_non_task_notification_detail_page_can_be_viewed_and_marks_as_read(): void
+    {
+        $user = User::factory()->create();
+        $user->notify(new PasswordChangedNotification('2026-10-28 10:00:00'));
+
+        $notification = $user->unreadNotifications()->first();
+        $this->assertNotNull($notification);
+
+        $response = $this->actingAs($user)->get(route('notifications.show', $notification->id));
+
+        $response->assertOk();
+        $this->assertNotNull($notification->fresh()->read_at);
+    }
+
+    public function test_task_notification_detail_redirects_to_task_show(): void
+    {
+        $user = User::factory()->create();
+        $project = Project::factory()->create(['created_by' => $user->id, 'updated_by' => $user->id]);
+        $task = Task::factory()->create([
+            'project_id' => $project->id,
+            'assigned_user_id' => $user->id,
+        ]);
+
+        $user->notify(new TaskAssignedNotification($task));
+        $notification = $user->unreadNotifications()->first();
+
+        $response = $this->actingAs($user)->get(route('notifications.show', $notification->id));
+
+        $response->assertRedirect(route('task.show', $task->id));
+        $this->assertNotNull($notification->fresh()->read_at);
     }
 }
