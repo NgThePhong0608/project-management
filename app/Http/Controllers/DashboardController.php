@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\ProjectResource;
 use App\Http\Resources\TaskResource;
+use App\Models\Project;
 use App\Models\Task;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -47,6 +49,14 @@ class DashboardController extends Controller
             ->get();
         $activeTasks = TaskResource::collection($activeTasks);
 
+        $projectsOverview = Project::query()
+            ->visibleTo($user)
+            ->with(['createdBy', 'updatedBy', 'members:id,name,email,avatar_path'])
+            ->withCount(['members', 'tasks'])
+            ->latest('updated_at')
+            ->limit(10)
+            ->get();
+
         return inertia('Dashboard', [
             'totalPendingTasks' => $globalCounts['totalPendingTasks'],
             'myPendingTasks' => $userCounts['myPendingTasks'],
@@ -55,6 +65,7 @@ class DashboardController extends Controller
             'totalCompletedTasks' => $globalCounts['totalCompletedTasks'],
             'myCompletedTasks' => $userCounts['myCompletedTasks'],
             'activeTasks' => $activeTasks,
+            'projectsOverview' => ProjectResource::collection($projectsOverview),
         ]);
     }
 }

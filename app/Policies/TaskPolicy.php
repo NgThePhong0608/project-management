@@ -24,6 +24,18 @@ class TaskPolicy
     }
 
     /**
+     * Only admin or a manager who can view the task can quick-assign the task.
+     */
+    public function quickAssign(User $user, Task $task): bool
+    {
+        if ($user->hasRole('admin')) {
+            return true;
+        }
+
+        return $user->hasRole('manager') && $this->view($user, $task);
+    }
+
+    /**
      * Determine whether the user can create models.
      */
     public function create(User $user): bool

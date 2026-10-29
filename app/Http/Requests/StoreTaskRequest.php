@@ -42,7 +42,11 @@ class StoreTaskRequest extends FormRequest
             'assigned_user_id' => ['required', 'exists:users,id'],
             'status' => [
                 'required',
-                Rule::in(['pending', 'in_progress', 'completed']),
+                Rule::in(
+                    $this->user()?->hasRole('admin', 'manager')
+                        ? ['pending', 'in_progress', 'completed', 'closed']
+                        : ['pending', 'in_progress', 'completed']
+                ),
             ],
             'priority' => [
                 'required',

@@ -9,10 +9,81 @@ import {
 import TextInput from "@/Components/TextInput";
 import SelectInput from "@/Components/SelectInput";
 import TableHeading from "@/Components/TableHeading";
-import { ChevronUpIcon, ChevronDownIcon } from "@heroicons/react/24/solid";
 
-const Index = ({ auth, projects, queryParams = null, success }) => {
+const ROLE_BADGE_MAP = {
+  owner: {
+    label: "Owner",
+    className:
+      "bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300 border border-purple-400/30",
+  },
+  manager: {
+    label: "Manager",
+    className:
+      "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300 border border-indigo-400/30",
+  },
+  member: {
+    label: "Joined",
+    className:
+      "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 border border-emerald-400/30",
+  },
+};
+
+const MemberStack = ({ count = 0, preview = [] }) => {
+  const remaining = Math.max(0, count - preview.length);
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex -space-x-2 overflow-hidden">
+        {preview.map((member) =>
+          member.avatar_url ? (
+            <img
+              key={member.id}
+              src={member.avatar_url}
+              alt={member.name}
+              title={`${member.name}${member.role ? ` (${member.role})` : ""}`}
+              className="inline-block h-7 w-7 rounded-full ring-2 ring-white dark:ring-gray-800 object-cover"
+            />
+          ) : (
+            <span
+              key={member.id}
+              title={`${member.name}${member.role ? ` (${member.role})` : ""}`}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-indigo-600 text-[11px] font-semibold text-white ring-2 ring-white dark:ring-gray-800"
+            >
+              {member.name?.charAt(0)?.toUpperCase() || "?"}
+            </span>
+          ),
+        )}
+        {remaining > 0 && (
+          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-700 text-[11px] font-semibold text-gray-700 dark:text-gray-200 ring-2 ring-white dark:ring-gray-800">
+            +{remaining}
+          </span>
+        )}
+      </div>
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200 text-nowrap">
+        {count} {count === 1 ? "member" : "members"}
+      </span>
+    </div>
+  );
+};
+
+const Index = ({
+  auth,
+  projects,
+  assignableUsers = [],
+  queryParams = null,
+  success,
+}) => {
   queryParams = queryParams || {};
+
+  const quickAssignProject = (project, assignedUserId) => {
+    if (!assignedUserId || Number(assignedUserId) === project.createdBy?.id) {
+      return;
+    }
+    router.patch(
+      route("project.quickAssign", project.id),
+      { assigned_user_id: Number(assignedUserId) },
+      { preserveScroll: true },
+    );
+  };
 
   const searchFieldChanged = (name, value) => {
     if (value) {
@@ -112,6 +183,15 @@ const Index = ({ auth, projects, queryParams = null, success }) => {
                         Status
                       </TableHeading>
                       <TableHeading
+                        name={"members_count"}
+                        sort_field={queryParams.sort_field}
+                        sort_direction={queryParams.sort_direction}
+                        sortChanged={sortChanged}
+                      >
+                        Members
+                      </TableHeading>
+                      <th className="px-3 py-3">My Access</th>
+                      <TableHeading
                         name={"created_at"}
                         sort_field={queryParams.sort_field}
                         sort_direction={queryParams.sort_direction}
@@ -127,7 +207,7 @@ const Index = ({ auth, projects, queryParams = null, success }) => {
                       >
                         Due Date
                       </TableHeading>
-                      <th className="px-3 py-3">Created By</th>
+                      <th className="px-3 py-3">Assigned / Owner</th>
                       <th className="px-3 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
@@ -158,6 +238,22 @@ const Index = ({ auth, projects, queryParams = null, success }) => {
                           <option value="pending">Pending</option>
                           <option value="in_progress">In Progress</option>
                           <option value="completed">Completed</option>
+                          <option value="closed">Closed</option>
+                        </SelectInput>
+                      </th>
+                      <th className="px-3 py-3"></th>
+                      <th className="px-3 py-3">
+                        <SelectInput
+                          className="w-full"
+                          defaultValue={queryParams.scope}
+                          onChange={(e) =>
+                            searchFieldChanged("scope", e.target.value)
+                          }
+                        >
+                          <option value="">All Accessible</option>
+                          <option value="owned">Created by Me</option>
+                          <option value="managed">Managed by Me</option>
+                          <option value="joined">Joined</option>
                         </SelectInput>
                       </th>
                       <th className="px-3 py-3"></th>
@@ -167,62 +263,126 @@ const Index = ({ auth, projects, queryParams = null, success }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {projects.data.map((project) => (
-                      <tr
-                        key={project.id}
-                        className="bg-white border-b dark:bg-gray-800 dark:border-gray-700"
-                      >
-                        <th className="px-3 py-2">{project.id}</th>
-                        <td className="px-3 py-2">
-                          <img src={project.image_path} style={{ width: 80 }} />
-                        </td>
-                        <td className="px-3 py-2">
-                          <Link
-                            href={route("project.show", project.id)}
-                            className="px-3 py-2 font-medium text-white text-nowrap hover:underline"
-                          >
-                            {project.name}
-                          </Link>
-                        </td>
-                        <td className="px-3 py-2">
-                          <span
-                            className={
-                              "px-3 py-1 rounded text-white " +
-                              PROJECT_STATUS_CLASS_MAP[project.status]
+                    {projects.data.map((project) => {
+                      const roleBadge =
+                        ROLE_BADGE_MAP[project.my_project_role] ||
+                        (auth.user.role === "admin"
+                          ? {
+                              label: "Admin View",
+                              className:
+                                "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300 border border-amber-400/30",
                             }
-                          >
-                            {PROJECT_STATUS_TEXT_MAP[project.status]}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 text-nowrap">
-                          {project.created_at}
-                        </td>
-                        <td className="px-3 py-2 text-nowrap">
-                          {project.due_date}
-                        </td>
-                        <td className="px-3 py-2 text-nowrap">
-                          {project.createdBy.name}
-                        </td>
-                        <td className="px-3 py-2 text-nowrap">
-                          {project.can?.update && (
+                          : null);
+
+                      return (
+                        <tr
+                          key={project.id}
+                          className="bg-white border-b dark:bg-gray-800 dark:border-gray-700"
+                        >
+                          <th className="px-3 py-2">{project.id}</th>
+                          <td className="px-3 py-2">
+                            {project.image_path ? (
+                              <img
+                                src={project.image_path}
+                                alt={project.name}
+                                style={{ width: 80 }}
+                                className="rounded object-cover"
+                              />
+                            ) : (
+                              <span className="text-xs text-gray-400 italic">
+                                No image
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2">
                             <Link
-                              href={route("project.edit", project.id)}
-                              className="font-medium text-blue-600 dark:text-blue-500 hover:underline mx-1"
+                              href={route("project.show", project.id)}
+                              className="px-3 py-2 font-medium text-white text-nowrap hover:underline"
                             >
-                              Edit
+                              {project.name}
                             </Link>
-                          )}
-                          {project.can?.delete && (
-                            <button
-                              onClick={(e) => deleteProject(project)}
-                              className="font-medium text-red-600 dark:text-red-500 hover:underline mx-1"
+                          </td>
+                          <td className="px-3 py-2 text-nowrap">
+                            <span
+                              className={
+                                "px-3 py-1 rounded text-white " +
+                                PROJECT_STATUS_CLASS_MAP[project.status]
+                              }
                             >
-                              Delete
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                              {PROJECT_STATUS_TEXT_MAP[project.status]}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2">
+                            <MemberStack
+                              count={project.members_count}
+                              preview={project.members_preview}
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-nowrap">
+                            {roleBadge && (
+                              <span
+                                className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${roleBadge.className}`}
+                              >
+                                {roleBadge.label}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-nowrap">
+                            {project.created_at}
+                          </td>
+                          <td className="px-3 py-2 text-nowrap">
+                            {project.due_date}
+                          </td>
+                          <td className="px-3 py-2 text-nowrap">
+                            {project.can?.quickAssign &&
+                            assignableUsers.length > 0 ? (
+                              <select
+                                value={project.createdBy?.id || ""}
+                                onChange={(e) =>
+                                  quickAssignProject(project, e.target.value)
+                                }
+                                className="text-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 py-1 pl-2 pr-7 focus:ring-indigo-500 focus:border-indigo-500"
+                                title="Quick assign project to a Manager (Admin only)"
+                              >
+                                {!assignableUsers.some(
+                                  (u) => u.id === project.createdBy?.id,
+                                ) && (
+                                  <option value={project.createdBy?.id || ""}>
+                                    {project.createdBy?.name} (
+                                    {project.createdBy?.role || "owner"})
+                                  </option>
+                                )}
+                                {assignableUsers.map((u) => (
+                                  <option key={u.id} value={u.id}>
+                                    {u.name} (manager)
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span>{project.createdBy?.name}</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-nowrap text-right">
+                            {project.can?.update && (
+                              <Link
+                                href={route("project.edit", project.id)}
+                                className="font-medium text-blue-600 dark:text-blue-500 hover:underline mx-1"
+                              >
+                                Edit
+                              </Link>
+                            )}
+                            {project.can?.delete && (
+                              <button
+                                onClick={(e) => deleteProject(project)}
+                                className="font-medium text-red-600 dark:text-red-500 hover:underline mx-1"
+                              >
+                                Delete
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

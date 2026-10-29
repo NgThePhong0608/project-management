@@ -111,17 +111,18 @@ class ProjectMemberAndVisibilityTest extends TestCase
         $this->assertDatabaseHas('projects', ['id' => $this->project->id]);
     }
 
-    public function test_my_tasks_hides_tasks_of_projects_user_was_removed_from(): void
+    public function test_tasks_index_hides_tasks_of_projects_user_was_removed_from(): void
     {
         $this->project->members()->attach($this->outsider->id);
         $this->task->update(['assigned_user_id' => $this->outsider->id]);
 
-        $this->actingAs($this->outsider)->get(route('task.myTasks'))
-            ->assertInertia(fn ($p) => $p->has('tasks.data', 1));
+        $this->actingAs($this->outsider)->get(route('task.index'))
+            ->assertInertia(fn ($p) => $p->has('tasks.data', 1)
+                ->where('tasks.data.0.assignedUser.id', $this->outsider->id));
 
         $this->project->members()->detach($this->outsider->id);
 
-        $this->actingAs($this->outsider)->get(route('task.myTasks'))
+        $this->actingAs($this->outsider)->get(route('task.index'))
             ->assertInertia(fn ($p) => $p->has('tasks.data', 0));
     }
 

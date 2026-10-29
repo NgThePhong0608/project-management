@@ -38,6 +38,7 @@ class TaskResource extends JsonResource
             'can' => [
                 'update' => $request->user()?->can('update', $this->resource),
                 'delete' => $request->user()?->can('delete', $this->resource),
+                'quickAssign' => $request->user()?->can('quickAssign', $this->resource),
             ],
         ];
     }

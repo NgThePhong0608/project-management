@@ -29,15 +29,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('dashboard');
 
     Route::resource('project', ProjectController::class);
+    Route::patch('/project/{project}/quick-assign', [ProjectController::class, 'quickAssign'])
+        ->name('project.quickAssign');
     Route::post('/project/{project}/members', [ProjectMemberController::class, 'store'])
         ->name('project.members.store');
     Route::delete('/project/{project}/members/{user}', [ProjectMemberController::class, 'destroy'])
         ->name('project.members.destroy');
-    Route::get('/task/my-tasks', [TaskController::class, 'myTasks'])
-        ->name('task.myTasks');
     Route::resource('task', TaskController::class);
+    Route::patch('/task/{task}/quick-assign', [TaskController::class, 'quickAssign'])
+        ->name('task.quickAssign');
     Route::post('/comments', [CommentController::class, 'store'])->name('comments.store');
     Route::delete('/comments/{comment}', [CommentController::class, 'destroy'])->name('comments.destroy');
+    Route::patch('/user/{user}/role', [UserController::class, 'updateRole'])->name('user.updateRole');
     Route::resource('user', UserController::class);
 
     Route::prefix('notifications')->group(function () {
