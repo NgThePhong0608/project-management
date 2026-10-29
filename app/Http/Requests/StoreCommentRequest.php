@@ -46,6 +46,23 @@ class StoreCommentRequest extends FormRequest
                 return;
             }
 
+            if (preg_match_all('/\(attachment:([^)\s]+)\)/', $body, $attMatches)) {
+                $expectedPrefix = sprintf(
+                    'comment/%s_%d_u%d_',
+                    (string) $this->input('commentable_type'),
+                    (int) $this->input('commentable_id'),
+                    (int) $this->user()?->id
+                );
+
+                foreach ($attMatches[1] as $attPath) {
+                    if (! str_starts_with($attPath, $expectedPrefix)) {
+                        $validator->errors()->add('body', 'You can only attach files that you uploaded for this target.');
+
+                        return;
+                    }
+                }
+            }
+
             $parentId = $this->input('parent_id');
             if (! $parentId || $validator->errors()->isNotEmpty()) {
                 return;

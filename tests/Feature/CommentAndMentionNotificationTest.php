@@ -498,4 +498,78 @@ class CommentAndMentionNotificationTest extends TestCase
 
         Storage::disk($disk)->assertMissing($videoPath);
     }
+
+    public function test_attachment_cannot_be_deleted_by_copying_token_or_accessed_across_projects_after_revocation(): void
+    {
+        $disk = config('filesystems.default');
+        Storage::fake($disk);
+
+        // 1. Author uploads an attachment on $this->task and posts a comment
+        $uploadRes = $this->actingAs($this->author)
+            ->postJson(route('comments.uploadImage'), [
+                'commentable_type' => 'task',
+                'commentable_id' => $this->task->id,
+                'image' => UploadedFile::fake()->image('author-file.png')->size(200),
+            ])
+            ->assertOk();
+
+        $authorPath = $uploadRes->json('path');
+        $authorToken = $uploadRes->json('token');
+
+        $this->actingAs($this->author)
+            ->postJson(route('comments.store'), [
+                'commentable_type' => 'task',
+                'commentable_id' => $this->task->id,
+                'body' => "<p>Author attachment {$authorToken}</p>",
+            ])
+            ->assertCreated();
+
+        // 2. Another member tries to copy Author's attachment token into their own comment -> rejected (422)
+        $this->actingAs($this->member)
+            ->postJson(route('comments.store'), [
+                'commentable_type' => 'task',
+                'commentable_id' => $this->task->id,
+                'body' => "<p>Copied token {$authorToken}</p>",
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['body']);
+
+        // Even if a comment row in DB contains Author's token under Member's user_id, deleting Member's comment
+        // must NOT delete Author's file (both ownership check and remaining-reference check protect it)
+        $spoofedComment = $this->task->comments()->create([
+            'user_id' => $this->member->id,
+            'body' => "<p>Spoofed {$authorToken}</p>",
+        ]);
+
+        $this->actingAs($this->member)
+            ->deleteJson(route('comments.destroy', $spoofedComment->id))
+            ->assertNoContent();
+
+        Storage::disk($disk)->assertExists($authorPath);
+
+        // 3. Member loses access to $this->project, then tries to sign $authorPath using a different project they CAN view
+        $otherProject = Project::factory()->create([
+            'created_by' => $this->member->id,
+            'updated_by' => $this->member->id,
+        ]);
+        $this->project->members()->detach($this->member->id);
+
+        // Supplying $otherProject to sign $authorPath (which belongs to $this->task) is forbidden
+        $this->actingAs($this->member)
+            ->getJson(route('comments.attachmentUrl', [
+                'commentable_type' => 'project',
+                'commentable_id' => $otherProject->id,
+                'path' => $authorPath,
+            ]))
+            ->assertForbidden();
+
+        // Supplying the actual owning target ($this->task) after losing access is also forbidden
+        $this->actingAs($this->member)
+            ->getJson(route('comments.attachmentUrl', [
+                'commentable_type' => 'task',
+                'commentable_id' => $this->task->id,
+                'path' => $authorPath,
+            ]))
+            ->assertForbidden();
+    }
 }

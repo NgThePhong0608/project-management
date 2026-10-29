@@ -82,7 +82,14 @@ class CommentController extends Controller
             $ext = 'mov';
         }
         $safeName = (Str::slug($origName) ?: ($isVideo ? 'video' : 'image')).'.'.$ext;
-        $path = $file->storeAs('comment/'.Str::random(), $safeName);
+        $folder = sprintf(
+            'comment/%s_%d_u%d_%s',
+            $data['commentable_type'],
+            (int) $commentable->id,
+            (int) $request->user()->id,
+            Str::random(16)
+        );
+        $path = $file->storeAs($folder, $safeName);
         $icon = $isVideo ? '🎬' : '📎';
 
         return response()->json([
@@ -101,28 +108,31 @@ class CommentController extends Controller
             'path' => ['required', 'string', 'max:500', 'regex:/^(comment|task)\/[A-Za-z0-9_\-]+\/[A-Za-z0-9._\-]+$/'],
         ]);
 
-        $commentable = $data['commentable_type'] === 'project'
-            ? Project::findOrFail($data['commentable_id'])
-            : Task::findOrFail($data['commentable_id']);
+        $path = $data['path'];
+        $owningTarget = $this->resolveAndVerifyAttachmentTarget(
+            $path,
+            $data['commentable_type'],
+            (int) $data['commentable_id']
+        );
 
-        $this->authorize('view', $commentable);
+        $this->authorize('view', $owningTarget);
 
-        if (! Storage::exists($data['path'])) {
+        if (! Storage::exists($path)) {
             abort(404, 'Attachment not found.');
         }
 
         $expiresAt = now()->addMinutes(5);
         try {
-            $url = Storage::temporaryUrl($data['path'], $expiresAt);
+            $url = Storage::temporaryUrl($path, $expiresAt);
         } catch (\Throwable) {
-            $url = Storage::url($data['path']);
+            $url = Storage::url($path);
         }
 
-        $isVideo = (bool) preg_match('/\.(mp4|webm|ogg|mov)$/i', $data['path']);
+        $isVideo = (bool) preg_match('/\.(mp4|webm|ogg|mov)$/i', $path);
 
         return response()->json([
             'url' => $url,
-            'name' => basename($data['path']),
+            'name' => basename($path),
             'media_type' => $isVideo ? 'video' : 'image',
             'expires_at' => $expiresAt->toIso8601String(),
             'expires_in_seconds' => 300,
@@ -133,12 +143,27 @@ class CommentController extends Controller
     {
         $this->authorize('delete', $comment);
 
-        $bodies = collect([$comment->body])
-            ->merge(Comment::where('parent_id', $comment->id)->pluck('body'));
+        $deletingComments = collect([$comment])
+            ->merge(Comment::where('parent_id', $comment->id)->get());
+        $deletingIds = $deletingComments->pluck('id')->all();
 
-        foreach ($bodies as $body) {
-            if (preg_match_all('/\(attachment:(comment\/[A-Za-z0-9_\-]+\/[A-Za-z0-9._\-]+)\)/', (string) $body, $matches)) {
-                foreach (array_unique($matches[1]) as $path) {
+        foreach ($deletingComments as $item) {
+            if (! preg_match_all('/\(attachment:(comment\/[A-Za-z0-9_\-]+\/[A-Za-z0-9._\-]+)\)/', (string) $item->body, $matches)) {
+                continue;
+            }
+
+            $expectedType = class_basename($item->commentable_type) === 'Project' ? 'project' : 'task';
+
+            foreach (array_unique($matches[1]) as $path) {
+                if (! $this->isAttachmentOwnedByComment($path, $expectedType, (int) $item->commentable_id, (int) $item->user_id)) {
+                    continue;
+                }
+
+                $stillReferenced = Comment::whereNotIn('id', $deletingIds)
+                    ->where('body', 'like', "%(attachment:{$path})%")
+                    ->exists();
+
+                if (! $stillReferenced) {
                     Storage::deleteDirectory(dirname($path));
                 }
             }
@@ -151,5 +176,57 @@ class CommentController extends Controller
         }
 
         return back()->with('success', 'Comment deleted.');
+    }
+
+    private function resolveAndVerifyAttachmentTarget(string $path, string $suppliedType, int $suppliedId): Project|Task
+    {
+        if (preg_match('/^comment\/(project|task)_(\d+)_u(\d+)_[A-Za-z0-9]+\/[A-Za-z0-9._\-]+$/', $path, $m)) {
+            $ownerType = $m[1];
+            $ownerId = (int) $m[2];
+
+            if ($suppliedType !== $ownerType || $suppliedId !== $ownerId) {
+                abort(403, 'Attachment does not belong to the specified target.');
+            }
+
+            return $ownerType === 'project'
+                ? Project::findOrFail($ownerId)
+                : Task::findOrFail($ownerId);
+        }
+
+        $target = $suppliedType === 'project'
+            ? Project::findOrFail($suppliedId)
+            : Task::findOrFail($suppliedId);
+
+        if (str_starts_with($path, 'task/')) {
+            if (! ($target instanceof Task)) {
+                abort(403, 'Task attachment cannot be accessed via a project target.');
+            }
+
+            $belongsToTask = $target->image_path === $path
+                || $target->comments()->where('body', 'like', "%(attachment:{$path})%")->exists();
+
+            if (! $belongsToTask) {
+                abort(403, 'Attachment does not belong to this task.');
+            }
+
+            return $target;
+        }
+
+        if (! $target->comments()->where('body', 'like', "%(attachment:{$path})%")->exists()) {
+            abort(403, 'Attachment does not belong to this target.');
+        }
+
+        return $target;
+    }
+
+    private function isAttachmentOwnedByComment(string $path, string $expectedType, int $expectedTargetId, int $commentAuthorId): bool
+    {
+        if (preg_match('/^comment\/(project|task)_(\d+)_u(\d+)_[A-Za-z0-9]+\/[A-Za-z0-9._\-]+$/', $path, $m)) {
+            return $m[1] === $expectedType
+                && (int) $m[2] === $expectedTargetId
+                && (int) $m[3] === $commentAuthorId;
+        }
+
+        return false;
     }
 }
