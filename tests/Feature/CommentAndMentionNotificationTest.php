@@ -232,4 +232,22 @@ class CommentAndMentionNotificationTest extends TestCase
         $small = $this->task->comments()->create(['user_id' => $this->author->id, 'body' => 'hi']);
         $this->assertSame('hi', (new CommentCreated($small))->broadcastWith()['comment']['body']);
     }
+
+    public function test_no_delivery_to_user_who_lost_access_after_dispatch(): void
+    {
+        $comment = $this->task->comments()->create(['user_id' => $this->author->id, 'body' => 'secret']);
+        $notification = new CommentNotification($comment, 'new_comment');
+
+        $this->assertSame(['database', 'mail', 'broadcast'], $notification->via($this->member));
+
+        // Removed from the project while still the task's assignee.
+        $this->project->members()->detach($this->member->id);
+        $this->assertSame([], $notification->via($this->member));
+
+        // Assignee who was never a member (task assignment accepts any user).
+        $this->assertSame([], $notification->via($this->outsider));
+
+        $this->member->notify($notification);
+        $this->assertSame(0, $this->member->notifications()->count());
+    }
 }
