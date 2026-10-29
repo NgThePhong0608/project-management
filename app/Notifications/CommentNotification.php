@@ -22,9 +22,14 @@ class CommentNotification extends Notification implements ShouldQueue
 
     public function __construct(public Comment $comment, public string $mentionType = self::NEW_COMMENT) {}
 
+    /** Drop the job quietly if the comment was deleted before delivery. */
+    public bool $deleteWhenMissingModels = true;
+
     public function via(object $notifiable): array
     {
-        $target = $this->comment->commentable;
+        // Re-check access at delivery time: the notification is queued, so membership or
+        // assignment may have changed (or the comment/target deleted) since it was dispatched.
+        $target = $this->comment->fresh()?->commentable;
         if (! $target || ! Gate::forUser($notifiable)->allows('view', $target)) {
             return [];
         }
