@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\ProjectMembersAdded;
 use App\Http\Requests\StoreProjectMemberRequest;
 use App\Models\Project;
 use App\Models\User;
@@ -13,10 +14,14 @@ class ProjectMemberController extends Controller
         $role = $request->validated('role') ?? 'member';
         $existing = $project->members()->pluck('users.id')->all();
 
-        $new = collect($request->validated('user_ids'))->unique()->diff($existing);
-        $project->members()->attach(
-            $new->mapWithKeys(fn ($id) => [$id => ['role' => $role, 'added_by' => $request->user()->id]])->all()
-        );
+        $new = collect($request->validated('user_ids'))->unique()->diff($existing)->values();
+        if ($new->isNotEmpty()) {
+            $project->members()->attach(
+                $new->mapWithKeys(fn ($id) => [$id => ['role' => $role, 'added_by' => $request->user()->id]])->all()
+            );
+
+            ProjectMembersAdded::dispatch($project, $request->user(), $new->map(fn ($id) => (int) $id)->all(), $role, 'added');
+        }
 
         return back()->with('success', $new->count().' member(s) added to the project.');
     }

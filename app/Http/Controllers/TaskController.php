@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\TaskActivityRecorded;
 use App\Http\Requests\StoreTaskRequest;
 use App\Http\Requests\UpdateTaskRequest;
 use App\Http\Resources\CommentResource;
@@ -114,7 +115,10 @@ class TaskController extends Controller
         $data['created_by'] = auth()->id();
         $data['updated_by'] = auth()->id();
         if ($image) {
-            $data['image_path'] = $image->store('task/'.Str::random());
+            $origName = pathinfo($image->getClientOriginalName(), PATHINFO_FILENAME);
+            $ext = strtolower($image->getClientOriginalExtension() ?: $image->extension() ?: 'png');
+            $safeName = (Str::slug($origName) ?: 'task-image').'.'.$ext;
+            $data['image_path'] = $image->storeAs('task/'.Str::random(), $safeName);
         }
         $task = Task::create($data);
         $this->clearDashboardCache($task->assigned_user_id);
@@ -173,13 +177,30 @@ class TaskController extends Controller
         $image = $data['image'] ?? null;
         $data['updated_by'] = auth()->id();
         if ($image) {
-            if ($task->image_path) {
-                Storage::deleteDirectory(dirname($task->image_path));
-            }
-            $data['image_path'] = $image->store('task/'.Str::random());
+            // Keep historical task images in Storage so Before -> After activity comments can still display them
+            $origName = pathinfo($image->getClientOriginalName(), PATHINFO_FILENAME);
+            $ext = strtolower($image->getClientOriginalExtension() ?: $image->extension() ?: 'png');
+            $safeName = (Str::slug($origName) ?: 'task-image').'.'.$ext;
+            $data['image_path'] = $image->storeAs('task/'.Str::random(), $safeName);
         }
         $oldAssignedUserId = $task->assigned_user_id;
+        $trackedFields = ['name', 'description', 'status', 'priority', 'due_date', 'project_id', 'assigned_user_id', 'image_path'];
+        $before = $task->only($trackedFields);
+
         $task->update($data);
+
+        $changes = [];
+        foreach ($trackedFields as $field) {
+            $oldVal = $before[$field] ?? null;
+            $newVal = $task->{$field} ?? null;
+            if ((string) $oldVal !== (string) $newVal) {
+                $changes[$field] = ['old' => $oldVal, 'new' => $newVal];
+            }
+        }
+
+        if (! empty($changes)) {
+            TaskActivityRecorded::dispatch($task->fresh(['assignedUser', 'project']), $request->user(), $changes);
+        }
 
         $this->clearDashboardCache($task->assigned_user_id);
         if ($oldAssignedUserId && $oldAssignedUserId != $task->assigned_user_id) {
@@ -250,6 +271,14 @@ class TaskController extends Controller
             'assigned_user_id' => $newAssignee->id,
             'updated_by' => auth()->id(),
         ]);
+
+        if ((int) $oldAssignedUserId !== (int) $newAssignee->id) {
+            TaskActivityRecorded::dispatch(
+                $task->fresh(['assignedUser', 'project']),
+                $request->user(),
+                ['assigned_user_id' => ['old' => $oldAssignedUserId, 'new' => $newAssignee->id]]
+            );
+        }
 
         $this->clearDashboardCache($newAssignee->id);
         if ($oldAssignedUserId && $oldAssignedUserId != $newAssignee->id) {
