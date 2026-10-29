@@ -16,6 +16,20 @@ const TasksTable = ({
 }) => {
   queryParams = queryParams || {};
 
+  const quickAssignTask = (task, assignedUserId) => {
+    if (
+      !assignedUserId ||
+      Number(assignedUserId) === Number(task.assigned_user_id)
+    ) {
+      return;
+    }
+    router.patch(
+      route("task.quickAssign", task.id),
+      { assigned_user_id: Number(assignedUserId) },
+      { preserveScroll: true },
+    );
+  };
+
   const searchFieldChanged = (name, value) => {
     if (value) {
       queryParams[name] = value;
@@ -94,6 +108,8 @@ const TasksTable = ({
                 Status
               </TableHeading>
 
+              <th className="px-3 py-3">Assigned</th>
+
               <TableHeading
                 name="created_at"
                 sort_field={queryParams.sort_field}
@@ -139,8 +155,10 @@ const TasksTable = ({
                   <option value="pending">Pending</option>
                   <option value="in_progress">In Progress</option>
                   <option value="completed">Completed</option>
+                  <option value="closed">Closed</option>
                 </SelectInput>
               </th>
+              <th className="px-3 py-3"></th>
               <th className="px-3 py-3"></th>
               <th className="px-3 py-3"></th>
               <th className="px-3 py-3"></th>
@@ -155,7 +173,18 @@ const TasksTable = ({
               >
                 <td className="px-3 py-2">{task.id}</td>
                 <td className="px-3 py-2">
-                  <img src={task.image_path} style={{ width: 60 }} />
+                  {task.image_path ? (
+                    <img
+                      src={task.image_path}
+                      alt={task.name}
+                      style={{ width: 60 }}
+                      className="rounded object-cover"
+                    />
+                  ) : (
+                    <span className="text-xs text-gray-400 italic">
+                      No image
+                    </span>
+                  )}
                 </td>
                 {!hideProjectColumn && (
                   <td className="px-3 py-2">{task.project.name}</td>
@@ -172,6 +201,62 @@ const TasksTable = ({
                   >
                     {TASK_STATUS_TEXT_MAP[task.status]}
                   </span>
+                </td>
+                <td className="px-3 py-2 text-nowrap">
+                  <div className="flex flex-col gap-1.5">
+                    {task.assignedUser ? (
+                      <Link
+                        href={route("user.show", task.assignedUser.id)}
+                        className="inline-flex items-center gap-2 hover:underline text-gray-900 dark:text-gray-100"
+                      >
+                        {task.assignedUser.avatar_url ? (
+                          <img
+                            src={task.assignedUser.avatar_url}
+                            alt={task.assignedUser.name}
+                            className="h-6 w-6 rounded-full object-cover ring-1 ring-gray-300 dark:ring-gray-600"
+                          />
+                        ) : (
+                          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-indigo-600 text-[10px] font-semibold text-white">
+                            {task.assignedUser.name?.charAt(0)?.toUpperCase() ||
+                              "?"}
+                          </span>
+                        )}
+                        <div>
+                          <div className="font-medium leading-tight">
+                            {task.assignedUser.name}
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            {task.assignedUser.email}
+                          </div>
+                        </div>
+                      </Link>
+                    ) : (
+                      <span className="text-xs text-gray-400 italic">
+                        Unassigned
+                      </span>
+                    )}
+
+                    {task.can?.quickAssign &&
+                      (task.project?.assignable_members?.length || 0) > 0 && (
+                        <select
+                          value={
+                            task.assigned_user_id || task.assignedUser?.id || ""
+                          }
+                          onChange={(e) =>
+                            quickAssignTask(task, e.target.value)
+                          }
+                          className="text-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 py-1 pl-2 pr-7 focus:ring-indigo-500 focus:border-indigo-500"
+                          title="Quick assign task to a project member (Admin & Manager)"
+                        >
+                          <option value="">-- Reassign member --</option>
+                          {task.project.assignable_members.map((u) => (
+                            <option key={u.id} value={u.id}>
+                              {u.name} ({u.role})
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                  </div>
                 </td>
                 <td className="px-3 py-2 text-nowrap">{task.created_at}</td>
                 <td className="px-3 py-2 text-nowrap">{task.due_date}</td>

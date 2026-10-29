@@ -127,4 +127,113 @@ class AuthorizationTest extends TestCase
     {
         $this->actingAs($this->member)->delete(route('task.destroy', $this->memberTask))->assertForbidden();
     }
+
+    public function test_only_admin_and_manager_can_update_task_or_project_to_closed_status(): void
+    {
+        // Member can update own assigned task to in_progress/completed, but NOT closed
+        $this->actingAs($this->member)->put(route('task.update', $this->memberTask), [
+            'name' => $this->memberTask->name,
+            'status' => 'closed',
+            'priority' => 'high',
+            'project_id' => $this->project->id,
+            'assigned_user_id' => $this->member->id,
+        ])->assertSessionHasErrors('status');
+
+        $this->assertNotEquals('closed', $this->memberTask->fresh()->status);
+
+        // Manager can update task and project to closed
+        $this->actingAs($this->manager)->put(route('task.update', $this->memberTask), [
+            'name' => $this->memberTask->name,
+            'status' => 'closed',
+            'priority' => 'high',
+            'project_id' => $this->project->id,
+            'assigned_user_id' => $this->member->id,
+        ])->assertRedirect(route('task.index'));
+
+        $this->assertEquals('closed', $this->memberTask->fresh()->status);
+
+        $this->actingAs($this->manager)->put(route('project.update', $this->project), [
+            'name' => $this->project->name,
+            'status' => 'closed',
+        ])->assertRedirect(route('project.index'));
+
+        $this->assertEquals('closed', $this->project->fresh()->status);
+    }
+
+    public function test_quick_assign_project_is_restricted_to_admin_only(): void
+    {
+        $newOwner = User::factory()->create(['role' => 'manager']);
+
+        // Member and Manager cannot quick-assign a project
+        $this->actingAs($this->member)
+            ->patch(route('project.quickAssign', $this->project), ['assigned_user_id' => $newOwner->id])
+            ->assertForbidden();
+
+        $this->actingAs($this->manager)
+            ->patch(route('project.quickAssign', $this->project), ['assigned_user_id' => $newOwner->id])
+            ->assertForbidden();
+
+        // Admin cannot quick-assign a project to a non-manager user
+        $this->actingAs($this->admin)
+            ->patch(route('project.quickAssign', $this->project), ['assigned_user_id' => $this->member->id])
+            ->assertSessionHasErrors('assigned_user_id');
+
+        // Admin can quick-assign the project to a manager; new owner becomes created_by and manager in project_user
+        $this->actingAs($this->admin)
+            ->patch(route('project.quickAssign', $this->project), ['assigned_user_id' => $newOwner->id])
+            ->assertRedirect();
+
+        $this->assertEquals($newOwner->id, $this->project->fresh()->created_by);
+        $this->assertDatabaseHas('project_user', [
+            'project_id' => $this->project->id,
+            'user_id' => $newOwner->id,
+            'role' => 'manager',
+        ]);
+    }
+
+    public function test_quick_assign_task_is_restricted_to_admin_and_manager(): void
+    {
+        $outsider = User::factory()->create(['role' => 'member']);
+
+        // Member cannot quick-assign task (even their own assigned task)
+        $this->actingAs($this->member)
+            ->patch(route('task.quickAssign', $this->memberTask), ['assigned_user_id' => $this->otherMember->id])
+            ->assertForbidden();
+
+        // Manager/Admin cannot quick-assign task to a user who has NOT joined the project or to an admin
+        $this->actingAs($this->manager)
+            ->patch(route('task.quickAssign', $this->memberTask), ['assigned_user_id' => $outsider->id])
+            ->assertSessionHasErrors('assigned_user_id');
+
+        $this->actingAs($this->admin)
+            ->patch(route('task.quickAssign', $this->memberTask), ['assigned_user_id' => $this->admin->id])
+            ->assertSessionHasErrors('assigned_user_id');
+
+        // Manager of the project can quick-assign task to a member who already joined the project
+        $this->actingAs($this->manager)
+            ->patch(route('task.quickAssign', $this->memberTask), ['assigned_user_id' => $this->otherMember->id])
+            ->assertRedirect();
+
+        $this->assertEquals($this->otherMember->id, $this->memberTask->fresh()->assigned_user_id);
+
+        // Admin can also quick-assign task to a project member
+        $this->actingAs($this->admin)
+            ->patch(route('task.quickAssign', $this->memberTask), ['assigned_user_id' => $this->member->id])
+            ->assertRedirect();
+
+        $this->assertEquals($this->member->id, $this->memberTask->fresh()->assigned_user_id);
+    }
+
+    public function test_only_admin_can_quick_update_user_role(): void
+    {
+        $this->actingAs($this->manager)
+            ->patch(route('user.updateRole', $this->member), ['role' => 'manager'])
+            ->assertForbidden();
+
+        $this->actingAs($this->admin)
+            ->patch(route('user.updateRole', $this->member), ['role' => 'manager'])
+            ->assertRedirect();
+
+        $this->assertEquals('manager', $this->member->fresh()->role);
+    }
 }

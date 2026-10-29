@@ -8,6 +8,8 @@ use App\Http\Resources\TaskResource;
 use App\Http\Resources\UserResource;
 use App\Models\Task;
 use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
@@ -31,6 +33,9 @@ class UserController extends Controller
         }
         if (request('email')) {
             $query->where('email', 'like', '%'.request('email').'%');
+        }
+        if (request('role')) {
+            $query->where('role', request('role'));
         }
 
         $users = $query->orderBy($sortField, $sortDirection)
@@ -101,6 +106,7 @@ class UserController extends Controller
             $taskQuery->where('status', request('status'));
         }
         $tasks = $taskQuery->orderBy($sortField, $sortDirection)->paginate(10)->onEachSide(1);
+        $tasks->load(['project.members:id,name,email,role,avatar_path', 'project.createdBy', 'assignedUser', 'createdBy', 'updatedBy']);
 
         return inertia('User/Show', [
             'user' => new UserResource($user),
@@ -146,5 +152,21 @@ class UserController extends Controller
 
         return to_route('user.index')
             ->with('success', 'User '.'"'.$user->name.'"'.' was deleted');
+    }
+
+    /**
+     * Quick-update a user's global role from /user table (Admin only).
+     */
+    public function updateRole(Request $request, User $user)
+    {
+        $this->authorize('update', $user);
+
+        $data = $request->validate([
+            'role' => ['required', Rule::in(User::ROLES)],
+        ]);
+
+        $user->update(['role' => $data['role']]);
+
+        return back()->with('success', "Role for \"{$user->name}\" was updated to {$data['role']}!");
     }
 }

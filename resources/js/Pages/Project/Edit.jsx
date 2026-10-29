@@ -202,6 +202,9 @@ const Edit = ({ auth, project }) => {
                   <option value="pending">Pending</option>
                   <option value="in_progress">In Progress</option>
                   <option value="completed">Completed</option>
+                  {["admin", "manager"].includes(auth.user.role) && (
+                    <option value="closed">Closed</option>
+                  )}
                 </SelectInput>
                 <InputError message={errors.status} className="mt-2" />
               </div>

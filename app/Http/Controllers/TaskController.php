@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Notifications\TaskAssignedNotification;
 use App\Services\AwsNotificationService;
 use DateTimeInterface;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -67,7 +68,9 @@ class TaskController extends Controller
      */
     public function index()
     {
-        $query = Task::query()->visibleTo(auth()->user());
+        $query = Task::query()
+            ->visibleTo(auth()->user())
+            ->with(['project.members:id,name,email,role,avatar_path', 'project.createdBy', 'assignedUser', 'createdBy', 'updatedBy']);
 
         $sortField = request('sort_field', 'created_at');
         $sortDirection = request('sort_direction', 'desc');
@@ -209,25 +212,54 @@ class TaskController extends Controller
             ->with('success', "Task \"$name\" was deleted");
     }
 
-    public function myTasks()
+    /**
+     * Quick-assign a task to a user belonging to the project (Admin and Manager only).
+     */
+    public function quickAssign(Request $request, Task $task)
     {
-        $query = Task::query()
-            ->visibleTo(auth()->user())
-            ->where('assigned_user_id', auth()->user()->id);
-        $sortField = request('sort_field', 'created_at');
-        $sortDirection = request('sort_direction', 'desc');
-        if (request('name')) {
-            $query->where('name', 'like', '%'.request('name').'%');
-        }
-        if (request('status')) {
-            $query->where('status', request('status'));
-        }
-        $tasks = $query->orderBy($sortField, $sortDirection)->paginate(30)->onEachSide(1);
+        $this->authorize('quickAssign', $task);
 
-        return inertia('Task/Index', [
-            'tasks' => TaskResource::collection($tasks),
-            'queryParams' => request()->query() ?: null,
-            'success' => session('success'),
+        $task->loadMissing('project.members');
+
+        $data = $request->validate([
+            'assigned_user_id' => [
+                'required',
+                'exists:users,id',
+                function (string $attribute, mixed $value, \Closure $fail) use ($task) {
+                    $targetUser = User::find($value);
+                    if (! $targetUser || $targetUser->hasRole('admin')) {
+                        $fail('The selected user cannot be quick-assigned to this task.');
+
+                        return;
+                    }
+
+                    $inProject = $task->project
+                        && ($task->project->created_by === $targetUser->id || $task->project->isMember($targetUser));
+
+                    if (! $inProject) {
+                        $fail('The selected user has not joined this project.');
+                    }
+                },
+            ],
         ]);
+
+        $oldAssignedUserId = $task->assigned_user_id;
+        $newAssignee = User::findOrFail($data['assigned_user_id']);
+
+        $task->update([
+            'assigned_user_id' => $newAssignee->id,
+            'updated_by' => auth()->id(),
+        ]);
+
+        $this->clearDashboardCache($newAssignee->id);
+        if ($oldAssignedUserId && $oldAssignedUserId != $newAssignee->id) {
+            $this->clearDashboardCache($oldAssignedUserId);
+        }
+
+        if ($oldAssignedUserId != $newAssignee->id) {
+            $this->publishTaskNotification($task, $newAssignee, 'reassigned');
+        }
+
+        return back()->with('success', "Task \"{$task->name}\" was assigned to {$newAssignee->name}!");
     }
 }

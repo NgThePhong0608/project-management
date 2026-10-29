@@ -37,6 +37,14 @@ class ProjectPolicy
     }
 
     /**
+     * Only admin (resolved via Gate::before or explicit check) can quick-assign a project.
+     */
+    public function quickAssign(User $user, Project $project): bool
+    {
+        return $user->hasRole('admin');
+    }
+
+    /**
      * Determine whether the user can create models.
      */
     public function create(User $user): bool

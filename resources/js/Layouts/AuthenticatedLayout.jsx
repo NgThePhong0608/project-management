@@ -68,7 +68,7 @@ export default function Authenticated({ user, header, children }) {
                   href={route("task.index")}
                   active={route().current("task.index")}
                 >
-                  All Tasks
+                  Tasks
                 </NavLink>
                 {auth?.can?.manageUsers && (
                   <NavLink
@@ -78,12 +78,6 @@ export default function Authenticated({ user, header, children }) {
                     Users
                   </NavLink>
                 )}
-                <NavLink
-                  href={route("task.myTasks")}
-                  active={route().current("task.myTasks")}
-                >
-                  My Tasks
-                </NavLink>
               </div>
             </div>
 

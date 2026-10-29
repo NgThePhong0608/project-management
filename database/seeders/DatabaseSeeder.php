@@ -45,7 +45,20 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        $users = [$admin, $manager, $member];
+        $extraMembers = [];
+        for ($k = 1; $k <= 10; $k++) {
+            $extraMembers[] = User::firstOrCreate(
+                ['email' => "member{$k}@example.com"],
+                [
+                    'name' => "Member User {$k}",
+                    'role' => 'member',
+                    'password' => bcrypt('password'),
+                    'email_verified_at' => now(),
+                ]
+            );
+        }
+
+        $users = [$admin, $manager, $member, ...$extraMembers];
 
         if (Project::count() === 0) {
             for ($i = 0; $i < 10; $i++) {

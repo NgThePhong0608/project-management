@@ -9,8 +9,10 @@ use App\Http\Resources\ProjectResource;
 use App\Http\Resources\TaskResource;
 use App\Models\Project;
 use App\Models\User;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class ProjectController extends Controller
 {
@@ -24,7 +26,11 @@ class ProjectController extends Controller
      */
     public function index()
     {
-        $query = Project::query()->visibleTo(auth()->user());
+        $user = auth()->user();
+        $query = Project::query()
+            ->visibleTo($user)
+            ->with(['createdBy', 'updatedBy', 'members:id,name,email,role,avatar_path'])
+            ->withCount(['members', 'tasks']);
 
         $sortField = request('sort_field', 'created_at');
         $sortDirection = request('sort_direction', 'desc');
@@ -34,10 +40,26 @@ class ProjectController extends Controller
         if (request('status')) {
             $query->where('status', request('status'));
         }
+        if (request('scope') === 'owned') {
+            $query->where('projects.created_by', $user->id);
+        } elseif (request('scope') === 'managed') {
+            $query->where(function ($q) use ($user) {
+                $q->where('projects.created_by', $user->id)
+                    ->orWhereHas('members', fn ($m) => $m->where('users.id', $user->id)->where('project_user.role', 'manager'));
+            });
+        } elseif (request('scope') === 'joined') {
+            $query->whereHas('members', fn ($m) => $m->where('users.id', $user->id));
+        }
+
         $projects = $query->orderBy($sortField, $sortDirection)->paginate(10)->onEachSide(1);
+
+        $assignableUsers = $user->hasRole('admin')
+            ? User::query()->where('role', 'manager')->orderBy('name')->get(['id', 'name', 'email', 'role'])
+            : [];
 
         return inertia('Project/Index', [
             'projects' => ProjectResource::collection($projects),
+            'assignableUsers' => $assignableUsers,
             'queryParams' => request()->query() ?: null,
             'success' => session('success'),
         ]);
@@ -79,7 +101,9 @@ class ProjectController extends Controller
      */
     public function show(Project $project)
     {
-        $query = $project->tasks()->visibleTo(auth()->user());
+        $query = $project->tasks()
+            ->visibleTo(auth()->user())
+            ->with(['project.members:id,name,email,role,avatar_path', 'project.createdBy', 'assignedUser', 'createdBy', 'updatedBy']);
 
         $sortField = request('sort_field', 'created_at');
         $sortDirection = request('sort_direction', 'desc');
@@ -151,6 +175,37 @@ class ProjectController extends Controller
         }
 
         return to_route('project.index')->with('success', 'Project '.'"'.$name.'"'.' was deleted successfully!');
+    }
+
+    /**
+     * Quick-assign a project to a new owner/manager (Admin only, target must have role 'manager').
+     */
+    public function quickAssign(Request $request, Project $project)
+    {
+        $this->authorize('quickAssign', $project);
+
+        $data = $request->validate([
+            'assigned_user_id' => [
+                'required',
+                Rule::exists('users', 'id')->where(fn ($q) => $q->where('role', 'manager')),
+            ],
+        ]);
+
+        $newOwner = User::findOrFail($data['assigned_user_id']);
+
+        $project->update([
+            'created_by' => $newOwner->id,
+            'updated_by' => auth()->id(),
+        ]);
+
+        $project->members()->syncWithoutDetaching([
+            $newOwner->id => [
+                'role' => 'manager',
+                'added_by' => auth()->id(),
+            ],
+        ]);
+
+        return back()->with('success', "Project \"{$project->name}\" was assigned to {$newOwner->name}!");
     }
 
     protected function memberData(User $u, ?string $role = null): array
