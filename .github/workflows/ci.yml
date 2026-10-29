@@ -2,9 +2,22 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: ["main", "master", "feat/**", "fix/**"]
+    branches:
+      - "main"
+      - "master"
+      - "feat/**"
+      - "feature/**"
+      - "fix/**"
+      - "hotfix/**"
+      - "chore/**"
+      - "refactor/**"
   pull_request:
     branches: ["main", "master"]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' }}
 
 jobs:
   backend-lint:

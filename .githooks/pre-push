@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Prevent direct pushes to master/main; require Pull Request workflow.
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [[ "$remote_ref" == "refs/heads/master" || "$remote_ref" == "refs/heads/main" ]]; then
+    echo "❌ [BLOCKED] Direct push to '${remote_ref#refs/heads/}' is forbidden." >&2
+    echo "👉 Please push to a feature/fix/chore branch and open a Pull Request instead." >&2
+    exit 1
+  fi
+done
+
+exit 0
