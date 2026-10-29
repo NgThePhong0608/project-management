@@ -12,9 +12,11 @@ use App\Models\User;
 use App\Notifications\CommentNotification;
 use App\Services\NotificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class CommentAndMentionNotificationTest extends TestCase
@@ -249,5 +251,251 @@ class CommentAndMentionNotificationTest extends TestCase
 
         $this->member->notify($notification);
         $this->assertSame(0, $this->member->notifications()->count());
+    }
+
+    public function test_adding_project_member_creates_activity_comment_and_sends_notification(): void
+    {
+        Notification::fake();
+        Event::fake([CommentCreated::class]);
+
+        $newMember = User::factory()->create(['role' => 'member', 'name' => 'Alice Tester']);
+
+        $this->actingAs($this->project->createdBy)
+            ->post(route('project.members.store', $this->project), [
+                'user_ids' => [$newMember->id],
+                'role' => 'member',
+            ])
+            ->assertRedirect();
+
+        $this->assertSame(1, $this->project->comments()->count());
+        $comment = $this->project->comments()->latest('id')->first();
+        $this->assertNotNull($comment);
+        $this->assertStringContainsString("@[Alice Tester]({$newMember->id})", $comment->body);
+
+        // New member is mentioned in the project comment and receives a notification exactly once
+        Notification::assertSentToTimes($newMember, CommentNotification::class, 1);
+        Notification::assertSentTo(
+            $newMember,
+            CommentNotification::class,
+            fn ($n) => $n->mentionType === CommentNotification::MENTIONED
+        );
+        // Existing project member also receives new_comment notification
+        Notification::assertSentToTimes($this->member, CommentNotification::class, 1);
+        Notification::assertSentTo(
+            $this->member,
+            CommentNotification::class,
+            fn ($n) => $n->mentionType === CommentNotification::NEW_COMMENT
+        );
+        Event::assertDispatchedTimes(CommentCreated::class, 1);
+    }
+
+    public function test_updating_task_and_status_creates_activity_comment_and_notifies_participants(): void
+    {
+        Notification::fake();
+        Event::fake([CommentCreated::class]);
+
+        $owner = $this->project->createdBy;
+        $this->task->update(['status' => 'pending', 'priority' => 'low']);
+
+        $this->actingAs($owner)
+            ->put(route('task.update', $this->task), [
+                'name' => $this->task->name,
+                'description' => 'Updated task description',
+                'status' => 'in_progress',
+                'priority' => 'high',
+                'due_date' => '2026-12-31',
+                'project_id' => $this->project->id,
+                'assigned_user_id' => $this->member->id,
+            ])
+            ->assertRedirect(route('task.index'));
+
+        $this->assertSame(1, $this->task->comments()->count());
+        $comment = $this->task->comments()->latest('id')->first();
+        $this->assertNotNull($comment);
+        $this->assertStringContainsString('Status:', $comment->body);
+        $this->assertStringContainsString('`In Progress`', $comment->body);
+        $this->assertStringContainsString("@[{$this->member->name}]({$this->member->id})", $comment->body);
+
+        // Assignee is tagged via cc @[Name](id) -> receives MENTIONED notification exactly once
+        Notification::assertSentToTimes($this->member, CommentNotification::class, 1);
+        Notification::assertSentTo(
+            $this->member,
+            CommentNotification::class,
+            fn ($n) => $n->mentionType === CommentNotification::MENTIONED
+        );
+        // Other project member receives NEW_COMMENT notification
+        Notification::assertSentToTimes($this->author, CommentNotification::class, 1);
+        Notification::assertSentTo(
+            $this->author,
+            CommentNotification::class,
+            fn ($n) => $n->mentionType === CommentNotification::NEW_COMMENT
+        );
+        Event::assertDispatchedTimes(CommentCreated::class, 1);
+    }
+
+    public function test_updating_task_image_preserves_old_image_and_embeds_before_after_in_comment(): void
+    {
+        $disk = config('filesystems.default');
+        Storage::fake($disk);
+        Notification::fake();
+        Event::fake([CommentCreated::class]);
+
+        $owner = $this->project->createdBy;
+        $oldPath = UploadedFile::fake()->image('old-banner.png')->storeAs('task/oldfolder', 'old-banner.png');
+        $this->task->update(['image_path' => $oldPath]);
+
+        $newImage = UploadedFile::fake()->image('new-banner.png', 200, 200);
+
+        $this->actingAs($owner)
+            ->put(route('task.update', $this->task), [
+                'name' => $this->task->name,
+                'description' => $this->task->description,
+                'status' => $this->task->status,
+                'priority' => $this->task->priority,
+                'due_date' => '2026-12-31',
+                'project_id' => $this->project->id,
+                'assigned_user_id' => $this->member->id,
+                'image' => $newImage,
+            ])
+            ->assertRedirect(route('task.index'));
+
+        // Old image still exists in Storage so historical comments can generate temporary URLs for it
+        Storage::disk($disk)->assertExists($oldPath);
+
+        $comment = $this->task->comments()->latest('id')->first();
+        $this->assertNotNull($comment);
+        $this->assertStringContainsString("📎 [old-banner.png](attachment:{$oldPath})", $comment->body);
+        $this->assertStringContainsString('→ 📎 [new-banner.png](attachment:task/', $comment->body);
+    }
+
+    public function test_comment_image_upload_enforces_2mb_limit_and_generates_5m_temporary_url(): void
+    {
+        $disk = config('filesystems.default');
+        Storage::fake($disk);
+
+        // Outsider cannot upload comment image to a task they cannot view
+        $this->actingAs($this->outsider)
+            ->postJson(route('comments.uploadImage'), [
+                'commentable_type' => 'task',
+                'commentable_id' => $this->task->id,
+                'image' => UploadedFile::fake()->image('test.png')->size(500),
+            ])
+            ->assertForbidden();
+
+        // Image exceeding 2MB (2048 KB) is rejected
+        $this->actingAs($this->author)
+            ->postJson(route('comments.uploadImage'), [
+                'commentable_type' => 'task',
+                'commentable_id' => $this->task->id,
+                'image' => UploadedFile::fake()->image('huge.png')->size(2500),
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['image']);
+
+        // Valid image <= 2MB succeeds and returns attachment path + filename token
+        $res = $this->actingAs($this->author)
+            ->postJson(route('comments.uploadImage'), [
+                'commentable_type' => 'task',
+                'commentable_id' => $this->task->id,
+                'image' => UploadedFile::fake()->image('Screenshot Final.png')->size(512),
+            ])
+            ->assertOk()
+            ->assertJsonStructure(['path', 'name', 'token']);
+
+        $path = $res->json('path');
+        $name = $res->json('name');
+        $token = $res->json('token');
+        $this->assertSame('screenshot-final.png', $name);
+
+        // Outsider cannot request temporary URL for attachment
+        $this->actingAs($this->outsider)
+            ->getJson(route('comments.attachmentUrl', [
+                'commentable_type' => 'task',
+                'commentable_id' => $this->task->id,
+                'path' => $path,
+            ]))
+            ->assertForbidden();
+
+        // Authorized member can request 5-minute temporary URL on click
+        $tempRes = $this->actingAs($this->member)
+            ->getJson(route('comments.attachmentUrl', [
+                'commentable_type' => 'task',
+                'commentable_id' => $this->task->id,
+                'path' => $path,
+            ]))
+            ->assertOk()
+            ->assertJsonStructure(['url', 'name', 'expires_at', 'expires_in_seconds']);
+
+        $this->assertSame(300, $tempRes->json('expires_in_seconds'));
+        $this->assertSame('screenshot-final.png', $tempRes->json('name'));
+
+        // Rich HTML comment with attachment filename token and @mention stores cleanly
+        $richHtml = "<p>Check this file @[{$this->member->name}]({$this->member->id}) {$token}</p>";
+
+        $this->actingAs($this->author)
+            ->post(route('comments.store'), [
+                'commentable_type' => 'task',
+                'commentable_id' => $this->task->id,
+                'body' => $richHtml,
+            ])
+            ->assertRedirect();
+
+        $saved = $this->task->comments()->latest('id')->first();
+        $this->assertSame($richHtml, $saved->body);
+        $this->assertEquals([$this->member->id], $saved->mentions()->pluck('user_id')->all());
+
+        // Video exceeding 10MB (10240 KB) is rejected
+        $this->actingAs($this->author)
+            ->postJson(route('comments.uploadImage'), [
+                'commentable_type' => 'task',
+                'commentable_id' => $this->task->id,
+                'image' => UploadedFile::fake()->create('huge-clip.mp4', 11000, 'video/mp4'),
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['image']);
+
+        // Valid video <= 10MB succeeds and generates video token + 5m temporary URL
+        $videoRes = $this->actingAs($this->author)
+            ->postJson(route('comments.uploadImage'), [
+                'commentable_type' => 'task',
+                'commentable_id' => $this->task->id,
+                'image' => UploadedFile::fake()->create('Demo Video.mp4', 3000, 'video/mp4'),
+            ])
+            ->assertOk()
+            ->assertJsonPath('media_type', 'video')
+            ->assertJsonPath('name', 'demo-video.mp4');
+
+        $videoPath = $videoRes->json('path');
+        $this->assertStringStartsWith('🎬 [demo-video.mp4](attachment:comment/', $videoRes->json('token'));
+
+        $this->actingAs($this->member)
+            ->getJson(route('comments.attachmentUrl', [
+                'commentable_type' => 'task',
+                'commentable_id' => $this->task->id,
+                'path' => $videoPath,
+            ]))
+            ->assertOk()
+            ->assertJsonPath('media_type', 'video')
+            ->assertJsonPath('expires_in_seconds', 300);
+
+        // Posting comment with JSON Accept header returns 201 without redirect and deleting comment cleans up S3 attachment
+        $videoToken = $videoRes->json('token');
+        $jsonCommentRes = $this->actingAs($this->author)
+            ->postJson(route('comments.store'), [
+                'commentable_type' => 'task',
+                'commentable_id' => $this->task->id,
+                'body' => "<p>Uploaded video {$videoToken}</p>",
+            ])
+            ->assertCreated()
+            ->assertJsonStructure(['comment' => ['id', 'body', 'author']]);
+
+        $createdCommentId = $jsonCommentRes->json('comment.id');
+        Storage::disk($disk)->assertExists($videoPath);
+
+        $this->actingAs($this->author)
+            ->deleteJson(route('comments.destroy', $createdCommentId))
+            ->assertNoContent();
+
+        Storage::disk($disk)->assertMissing($videoPath);
     }
 }

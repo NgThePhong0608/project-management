@@ -39,6 +39,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/task/{task}/quick-assign', [TaskController::class, 'quickAssign'])
         ->name('task.quickAssign');
     Route::post('/comments', [CommentController::class, 'store'])->name('comments.store');
+    Route::post('/comments/upload-image', [CommentController::class, 'uploadImage'])->name('comments.uploadImage');
+    Route::get('/comments/attachment-url', [CommentController::class, 'attachmentUrl'])->name('comments.attachmentUrl');
     Route::delete('/comments/{comment}', [CommentController::class, 'destroy'])->name('comments.destroy');
     Route::patch('/user/{user}/role', [UserController::class, 'updateRole'])->name('user.updateRole');
     Route::resource('user', UserController::class);

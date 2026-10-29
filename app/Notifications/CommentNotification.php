@@ -40,12 +40,17 @@ class CommentNotification extends Notification implements ShouldQueue
     public function toMail(object $notifiable): MailMessage
     {
         $data = $this->toArray($notifiable);
+        $cleanBody = preg_replace('/@\[([^\]]+)\]\(\d+\)/', '@$1', (string) $this->comment->body);
+        $cleanBody = preg_replace('/\[([^\]]+)\]\(attachment:[^)]+\)/', '$1', $cleanBody);
+        $cleanBody = preg_replace('/!\[([^\]]*)\]\([^)]+\)/', '[$1]', $cleanBody);
+        $cleanBody = preg_replace('/<img\b[^>]*>/i', '[Image]', $cleanBody);
+        $cleanBody = trim(preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($cleanBody), ENT_QUOTES | ENT_HTML5, 'UTF-8')));
 
         return (new MailMessage)
             ->subject("[{$data['project_name']}] ".$data['title'])
             ->greeting("Hello {$notifiable->name},")
             ->line($data['message'])
-            ->line('"'.Str::limit($this->comment->body, 300).'"')
+            ->line('"'.Str::limit($cleanBody, 300).'"')
             ->action('View '.($data['task_id'] ? 'Task' : 'Project'), url($data['target_url']));
     }
 

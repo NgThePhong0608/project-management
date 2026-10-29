@@ -1,8 +1,34 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, router, usePage } from "@inertiajs/react";
+import axios from "axios";
+import Quill from "quill";
+import "quill/dist/quill.snow.css";
 import PrimaryButton from "@/Components/PrimaryButton";
 
-const MENTION_RE = /@\[([^\]]*)\]\((\d+)\)/g;
+const MAX_IMAGE_BYTES = 2 * 1024 * 1024; // 2MB
+const MAX_VIDEO_BYTES = 10 * 1024 * 1024; // 10MB
+const ALLOWED_IMAGE_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+];
+const ALLOWED_VIDEO_TYPES = [
+  "video/mp4",
+  "video/webm",
+  "video/ogg",
+  "video/quicktime",
+];
+
+const INLINE_TOKEN_RE =
+  /@\[([^\]]*)\]\((\d+)\)|(?:(?:📎|🎬)\s*)?\[([^\]]+)\]\(attachment:([^)\s]+)\)|!\[([^\]]*)\]\(([^)\s]+)\)|`([^`\n]+)`/g;
+
+function isSafeUrl(url, allowRelative = true) {
+  if (!url || typeof url !== "string") return false;
+  const trimmed = url.trim();
+  if (allowRelative && trimmed.startsWith("/")) return true;
+  return /^https?:\/\//i.test(trimmed) || /^mailto:/i.test(trimmed);
+}
 
 function MentionBadge({
   name,
@@ -97,24 +123,317 @@ function MentionBadge({
   );
 }
 
-function renderBody(body, commentMentions = [], mentionable = []) {
+function AttachmentBadge({ name, path, onOpenAttachment }) {
+  const [loading, setLoading] = useState(false);
+  const isVideo = /\.(mp4|webm|ogg|mov)$/i.test(path || name || "");
+
+  const handleClick = async () => {
+    if (loading || !onOpenAttachment) return;
+    setLoading(true);
+    try {
+      await onOpenAttachment(path, name);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={loading}
+      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 my-0.5 rounded-md text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-950/70 dark:text-indigo-300 dark:hover:bg-indigo-900/70 border border-indigo-200/80 dark:border-indigo-800/70 transition cursor-pointer disabled:opacity-60"
+      title="Click to generate a 5-minute temporary S3 URL and view attachment"
+    >
+      <span>{isVideo ? "🎬" : "📎"}</span>
+      <span className="underline decoration-indigo-400/60 underline-offset-2">
+        {name}
+      </span>
+      {loading && (
+        <span className="text-[10px] text-indigo-500 animate-pulse">
+          (loading...)
+        </span>
+      )}
+    </button>
+  );
+}
+
+function CommentImage({ src, alt, onPreview }) {
+  if (!isSafeUrl(src)) return null;
+  return (
+    <span className="inline-flex flex-col items-start my-1.5 mr-2 align-middle">
+      <button
+        type="button"
+        onClick={() => onPreview?.({ src, alt: alt || "Comment image" })}
+        className="group relative overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 shadow-sm hover:ring-2 hover:ring-indigo-500 transition focus:outline-none"
+        title="Click to enlarge"
+      >
+        <img
+          src={src}
+          alt={alt || "Comment image"}
+          loading="lazy"
+          className="max-h-40 max-w-xs object-cover rounded-lg group-hover:opacity-95 transition"
+        />
+      </button>
+      {alt && alt !== "Comment image" && (
+        <span className="mt-1 text-[11px] font-medium text-gray-500 dark:text-gray-400">
+          {alt}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function renderInlineText(
+  text,
+  commentMentions = [],
+  mentionable = [],
+  onPreview,
+  onOpenAttachment,
+  keyPrefix = "t",
+) {
+  if (!text) return null;
   const parts = [];
   let last = 0;
-  for (const m of body.matchAll(MENTION_RE)) {
-    if (m.index > last) parts.push(body.slice(last, m.index));
-    parts.push(
-      <MentionBadge
-        key={m.index}
-        name={m[1]}
-        userId={m[2]}
-        commentMentions={commentMentions}
-        mentionable={mentionable}
-      />,
-    );
+  let idx = 0;
+
+  for (const m of text.matchAll(INLINE_TOKEN_RE)) {
+    if (m.index > last) {
+      parts.push(text.slice(last, m.index));
+    }
+    if (m[1] !== undefined && m[2] !== undefined) {
+      parts.push(
+        <MentionBadge
+          key={`${keyPrefix}-m-${idx++}`}
+          name={m[1]}
+          userId={m[2]}
+          commentMentions={commentMentions}
+          mentionable={mentionable}
+        />,
+      );
+    } else if (m[3] !== undefined && m[4] !== undefined) {
+      parts.push(
+        <AttachmentBadge
+          key={`${keyPrefix}-att-${idx++}`}
+          name={m[3]}
+          path={m[4]}
+          onOpenAttachment={onOpenAttachment}
+        />,
+      );
+    } else if (m[6] !== undefined) {
+      parts.push(
+        <CommentImage
+          key={`${keyPrefix}-img-${idx++}`}
+          alt={m[5]}
+          src={m[6]}
+          onPreview={onPreview}
+        />,
+      );
+    } else if (m[7] !== undefined) {
+      parts.push(
+        <code
+          key={`${keyPrefix}-code-${idx++}`}
+          className="px-1.5 py-0.5 text-xs font-mono rounded bg-gray-100 dark:bg-gray-800 text-indigo-600 dark:text-indigo-300 border border-gray-200 dark:border-gray-700"
+        >
+          {m[7]}
+        </code>,
+      );
+    }
     last = m.index + m[0].length;
   }
-  if (last < body.length) parts.push(body.slice(last));
+
+  if (last < text.length) {
+    parts.push(text.slice(last));
+  }
   return parts;
+}
+
+function isHtmlComment(body) {
+  return /^\s*<(p|ul|ol|blockquote|pre|h[1-6]|div)\b/i.test(body || "");
+}
+
+function renderDomNode(
+  node,
+  commentMentions,
+  mentionable,
+  onPreview,
+  onOpenAttachment,
+  key,
+) {
+  if (node.nodeType === Node.TEXT_NODE) {
+    return renderInlineText(
+      node.textContent,
+      commentMentions,
+      mentionable,
+      onPreview,
+      onOpenAttachment,
+      key,
+    );
+  }
+
+  if (node.nodeType !== Node.ELEMENT_NODE) {
+    return null;
+  }
+
+  const tag = node.tagName.toLowerCase();
+  const children = Array.from(node.childNodes).map((child, i) =>
+    renderDomNode(
+      child,
+      commentMentions,
+      mentionable,
+      onPreview,
+      onOpenAttachment,
+      `${key}-${i}`,
+    ),
+  );
+
+  switch (tag) {
+    case "p":
+      return (
+        <p key={key} className="mb-1.5 last:mb-0 leading-relaxed">
+          {children}
+        </p>
+      );
+    case "br":
+      return <br key={key} />;
+    case "strong":
+    case "b":
+      return (
+        <strong key={key} className="font-semibold">
+          {children}
+        </strong>
+      );
+    case "em":
+    case "i":
+      return (
+        <em key={key} className="italic">
+          {children}
+        </em>
+      );
+    case "u":
+      return (
+        <u key={key} className="underline">
+          {children}
+        </u>
+      );
+    case "s":
+    case "strike":
+      return (
+        <s key={key} className="line-through">
+          {children}
+        </s>
+      );
+    case "ul":
+      return (
+        <ul key={key} className="list-disc pl-5 my-1.5 space-y-0.5">
+          {children}
+        </ul>
+      );
+    case "ol":
+      return (
+        <ol key={key} className="list-decimal pl-5 my-1.5 space-y-0.5">
+          {children}
+        </ol>
+      );
+    case "li":
+      return <li key={key}>{children}</li>;
+    case "blockquote":
+      return (
+        <blockquote
+          key={key}
+          className="border-l-4 border-indigo-400 dark:border-indigo-500 pl-3 py-0.5 my-1.5 italic text-gray-600 dark:text-gray-300 bg-gray-50/60 dark:bg-gray-800/40 rounded-r"
+        >
+          {children}
+        </blockquote>
+      );
+    case "pre":
+      return (
+        <pre
+          key={key}
+          className="p-2.5 my-1.5 rounded-lg bg-gray-900 text-gray-100 text-xs font-mono overflow-x-auto"
+        >
+          {children}
+        </pre>
+      );
+    case "code":
+      return (
+        <code
+          key={key}
+          className="px-1.5 py-0.5 text-xs font-mono rounded bg-gray-100 dark:bg-gray-800 text-indigo-600 dark:text-indigo-300"
+        >
+          {children}
+        </code>
+      );
+    case "a": {
+      const href = node.getAttribute("href");
+      if (href && href.startsWith("attachment:")) {
+        const path = href.slice("attachment:".length);
+        const label = node.textContent?.replace(/^📎\s*/, "") || path;
+        return (
+          <AttachmentBadge
+            key={key}
+            name={label}
+            path={path}
+            onOpenAttachment={onOpenAttachment}
+          />
+        );
+      }
+      if (!isSafeUrl(href)) return <span key={key}>{children}</span>;
+      return (
+        <a
+          key={key}
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-indigo-600 dark:text-indigo-400 underline hover:text-indigo-500"
+        >
+          {children}
+        </a>
+      );
+    }
+    case "img": {
+      const src = node.getAttribute("src");
+      const alt = node.getAttribute("alt") || "Comment image";
+      return (
+        <CommentImage key={key} src={src} alt={alt} onPreview={onPreview} />
+      );
+    }
+    default:
+      return <span key={key}>{children}</span>;
+  }
+}
+
+function renderBody(
+  body,
+  commentMentions = [],
+  mentionable = [],
+  onPreview = null,
+  onOpenAttachment = null,
+) {
+  if (!body) return null;
+
+  if (isHtmlComment(body) && typeof DOMParser !== "undefined") {
+    const doc = new DOMParser().parseFromString(body, "text/html");
+    return Array.from(doc.body.childNodes).map((node, i) =>
+      renderDomNode(
+        node,
+        commentMentions,
+        mentionable,
+        onPreview,
+        onOpenAttachment,
+        `node-${i}`,
+      ),
+    );
+  }
+
+  return renderInlineText(
+    body,
+    commentMentions,
+    mentionable,
+    onPreview,
+    onOpenAttachment,
+    "raw",
+  );
 }
 
 function CommentForm({
@@ -122,15 +441,25 @@ function CommentForm({
   id,
   parentId = null,
   mentionable,
+  onCreated,
   onDone,
   autoFocus,
 }) {
   const [body, setBody] = useState("");
-  const [query, setQuery] = useState(null); // { start, text } while typing @...
+  const [isEmpty, setIsEmpty] = useState(true);
+  const [query, setQuery] = useState(null); // { start, text, caret } while typing @...
   const [active, setActive] = useState(0);
   const [processing, setProcessing] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [error, setError] = useState(null);
-  const ref = useRef(null);
+
+  const editorContainerRef = useRef(null);
+  const quillRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const videoInputRef = useRef(null);
+  const pendingFilesRef = useRef(new Map());
+  const pendingCounterRef = useRef(0);
+  const stateRef = useRef({ matches: [], active: 0, query: null });
 
   const matches = useMemo(() => {
     if (!query) return [];
@@ -143,82 +472,391 @@ function CommentForm({
       .slice(0, 6);
   }, [query, mentionable]);
 
-  const detect = (value, caret) => {
-    const m = /(?:^|\s)@([^\s@\[\]]*)$/.exec(value.slice(0, caret));
-    if (m) {
-      setQuery({ start: caret - m[1].length - 1, text: m[1] });
-      setActive(0);
-    } else {
-      setQuery(null);
-    }
-  };
+  const pick = useCallback((user) => {
+    const quill = quillRef.current;
+    const currentQuery = stateRef.current.query;
+    if (!quill || !currentQuery) return;
 
-  const pick = (user) => {
-    const caret = ref.current.selectionStart;
+    const range = quill.getSelection(true);
+    const caret = range
+      ? Math.max(range.index, currentQuery.caret)
+      : currentQuery.caret;
     const token = `@[${user.name}](${user.id}) `;
-    const next = body.slice(0, query.start) + token + body.slice(caret);
-    setBody(next);
-    setQuery(null);
-    requestAnimationFrame(() => {
-      const pos = query.start + token.length;
-      ref.current.focus();
-      ref.current.setSelectionRange(pos, pos);
-    });
-  };
 
-  const onKeyDown = (e) => {
-    if (!matches.length) return;
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setActive((a) => (a + 1) % matches.length);
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setActive((a) => (a - 1 + matches.length) % matches.length);
-    } else if (e.key === "Enter" || e.key === "Tab") {
-      e.preventDefault();
-      pick(matches[active]);
-    } else if (e.key === "Escape") {
-      setQuery(null);
-    }
-  };
-
-  const submit = (e) => {
-    e.preventDefault();
-    if (!body.trim()) return;
-    router.post(
-      route("comments.store"),
-      { commentable_type: type, commentable_id: id, body, parent_id: parentId },
-      {
-        preserveScroll: true,
-        onStart: () => setProcessing(true),
-        onFinish: () => setProcessing(false),
-        onSuccess: () => {
-          setBody("");
-          setError(null);
-          onDone?.();
-        },
-        onError: (errs) => setError(Object.values(errs)[0]),
-      },
+    quill.deleteText(
+      currentQuery.start,
+      Math.max(1, caret - currentQuery.start),
+      "user",
     );
+    quill.insertText(currentQuery.start, token, "user");
+    quill.setSelection(currentQuery.start + token.length, 0, "user");
+    setQuery(null);
+  }, []);
+
+  useEffect(() => {
+    stateRef.current = { matches, active, query };
+  }, [matches, active, query]);
+
+  const uploadAndInsertAttachment = useCallback((file) => {
+    if (!file) return;
+    setError(null);
+
+    const isImage = ALLOWED_IMAGE_TYPES.includes(file.type);
+    const isVideo = ALLOWED_VIDEO_TYPES.includes(file.type);
+
+    if (!isImage && !isVideo) {
+      setError(
+        "Only images (JPEG, PNG, GIF, WEBP) and videos (MP4, WEBM, OGG, MOV) are allowed.",
+      );
+      return;
+    }
+
+    const maxBytes = isVideo ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+    const maxLabel = isVideo ? "10MB" : "2MB";
+
+    if (file.size > maxBytes) {
+      const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
+      setError(
+        `${isVideo ? "Video" : "Image"} size must not exceed ${maxLabel} (selected: ${sizeMb}MB).`,
+      );
+      return;
+    }
+
+    // Stage file in browser memory ONLY; actual S3 upload happens when user clicks Comment/Reply
+    pendingCounterRef.current += 1;
+    const pendingId = `pending_${pendingCounterRef.current}`;
+    const safeDisplayName =
+      file.name.replace(/[\[\]()]/g, "_") ||
+      (isVideo ? "video.mp4" : "image.png");
+    pendingFilesRef.current.set(pendingId, {
+      file,
+      name: safeDisplayName,
+      isVideo,
+    });
+
+    const quill = quillRef.current;
+    if (quill) {
+      const range = quill.getSelection(true);
+      const index = range ? range.index : Math.max(0, quill.getLength() - 1);
+      const icon = isVideo ? "🎬" : "📎";
+      const token = `${icon} [${safeDisplayName}](pending:${pendingId}) `;
+      quill.insertText(index, token, "user");
+      quill.setSelection(index + token.length, 0, "user");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!editorContainerRef.current || quillRef.current) return;
+
+    const wrapper = editorContainerRef.current;
+    wrapper.innerHTML = "";
+    const editorEl = document.createElement("div");
+    wrapper.appendChild(editorEl);
+
+    const quill = new Quill(editorEl, {
+      theme: "snow",
+      placeholder:
+        "Write a comment... Type @ to mention a member, or attach image (2MB) / video (10MB)",
+      modules: {
+        toolbar: {
+          container: [
+            ["bold", "italic", "underline", "strike"],
+            [{ list: "ordered" }, { list: "bullet" }],
+            ["blockquote", "code-block"],
+            ["link", "image", "video"],
+            ["clean"],
+          ],
+          handlers: {
+            image: () => {
+              fileInputRef.current?.click();
+            },
+            video: () => {
+              videoInputRef.current?.click();
+            },
+          },
+        },
+      },
+    });
+
+    quillRef.current = quill;
+
+    if (autoFocus) {
+      quill.focus();
+    }
+
+    const detectMentionAtCaret = (caretIndex) => {
+      if (typeof caretIndex !== "number" || caretIndex < 0) {
+        setQuery(null);
+        return;
+      }
+      const textBefore = quill.getText(0, caretIndex).replace(/\u00a0/g, " ");
+      const m = /(?:^|\s)@([^\s@\[\]]*)$/.exec(textBefore);
+      if (m) {
+        setQuery({
+          start: caretIndex - m[1].length - 1,
+          text: m[1],
+          caret: caretIndex,
+        });
+        setActive(0);
+      } else {
+        setQuery(null);
+      }
+    };
+
+    const getCaretFromDelta = (delta) => {
+      if (!delta || !Array.isArray(delta.ops)) return null;
+      let pos = 0;
+      let changed = false;
+      for (const op of delta.ops) {
+        if (typeof op.retain === "number") {
+          pos += op.retain;
+        } else if (typeof op.insert === "string") {
+          pos += op.insert.length;
+          changed = true;
+        } else if (op.insert && typeof op.insert === "object") {
+          pos += 1;
+          changed = true;
+        } else if (typeof op.delete === "number") {
+          changed = true;
+        }
+      }
+      return changed ? pos : null;
+    };
+
+    const syncEditorState = (delta) => {
+      const html = quill.root.innerHTML;
+      const text = quill.getText().trim();
+      const hasImg = /<img\b[^>]*src=/i.test(html);
+      const empty = text.length === 0 && !hasImg;
+      setIsEmpty(empty);
+      setBody(empty ? "" : html);
+
+      // Compute caret directly from Delta so typing '@' at index 0 triggers immediately
+      // without waiting for Quill's asynchronous selection update
+      const deltaCaret = getCaretFromDelta(delta);
+      if (deltaCaret !== null) {
+        detectMentionAtCaret(deltaCaret);
+        return;
+      }
+
+      const range = quill.getSelection() || quill.selection?.getRange?.()?.[0];
+      if (range && range.length === 0) {
+        detectMentionAtCaret(range.index);
+      } else {
+        setQuery(null);
+      }
+    };
+
+    const handleSelectionCheck = () => {
+      setTimeout(() => {
+        if (!quillRef.current) return;
+        const range =
+          quill.getSelection() || quill.selection?.getRange?.()?.[0];
+        if (range && range.length === 0) {
+          detectMentionAtCaret(range.index);
+        }
+      }, 0);
+    };
+
+    quill.on("text-change", syncEditorState);
+    quill.on("selection-change", handleSelectionCheck);
+
+    const handleKeyDown = (e) => {
+      const { matches: currentMatches, active: currentActive } =
+        stateRef.current;
+      if (!currentMatches.length) return;
+
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        e.stopPropagation();
+        setActive((a) => (a + 1) % currentMatches.length);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        e.stopPropagation();
+        setActive(
+          (a) => (a - 1 + currentMatches.length) % currentMatches.length,
+        );
+      } else if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        e.stopPropagation();
+        pick(currentMatches[currentActive]);
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        setQuery(null);
+      }
+    };
+
+    const handlePaste = (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith("image/") || item.type.startsWith("video/")) {
+          e.preventDefault();
+          e.stopPropagation();
+          const file = item.getAsFile();
+          if (file) uploadAndInsertAttachment(file);
+          return;
+        }
+      }
+    };
+
+    const handleDrop = (e) => {
+      const files = e.dataTransfer?.files;
+      if (!files || !files.length) return;
+      for (const file of files) {
+        if (file.type.startsWith("image/") || file.type.startsWith("video/")) {
+          e.preventDefault();
+          e.stopPropagation();
+          uploadAndInsertAttachment(file);
+          return;
+        }
+      }
+    };
+
+    quill.root.addEventListener("keydown", handleKeyDown, true);
+    quill.root.addEventListener("keyup", handleSelectionCheck);
+    quill.root.addEventListener("click", handleSelectionCheck);
+    quill.root.addEventListener("paste", handlePaste, true);
+    quill.root.addEventListener("drop", handleDrop, true);
+
+    return () => {
+      quill.off("text-change", syncEditorState);
+      quill.off("selection-change", handleSelectionCheck);
+      quill.root.removeEventListener("keydown", handleKeyDown, true);
+      quill.root.removeEventListener("keyup", handleSelectionCheck);
+      quill.root.removeEventListener("click", handleSelectionCheck);
+      quill.root.removeEventListener("paste", handlePaste, true);
+      quill.root.removeEventListener("drop", handleDrop, true);
+      quillRef.current = null;
+    };
+  }, [autoFocus, pick, uploadAndInsertAttachment]);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (isEmpty || !body.trim() || processing || uploadingImage) return;
+
+    setError(null);
+    setProcessing(true);
+
+    try {
+      let finalBody = body;
+
+      // Find all pending attachments that are STILL present in the comment body
+      const pendingRegex = /\[([^\]]+)\]\(pending:(pending_\d+)\)/g;
+      const matchesInBody = [...finalBody.matchAll(pendingRegex)];
+
+      if (matchesInBody.length > 0) {
+        setUploadingImage(true);
+        const uploadedMap = new Map();
+
+        for (const match of matchesInBody) {
+          const pendingId = match[2];
+          if (uploadedMap.has(pendingId)) continue;
+
+          const staged = pendingFilesRef.current.get(pendingId);
+          if (!staged) continue;
+
+          const formData = new FormData();
+          formData.append("image", staged.file);
+          formData.append("commentable_type", type);
+          formData.append("commentable_id", id);
+
+          const uploadRes = await axios.post(
+            route("comments.uploadImage", {}, false),
+            formData,
+            {
+              headers: { "Content-Type": "multipart/form-data" },
+            },
+          );
+
+          if (uploadRes.data?.path && uploadRes.data?.name) {
+            uploadedMap.set(pendingId, {
+              name: uploadRes.data.name,
+              path: uploadRes.data.path,
+            });
+          }
+        }
+
+        finalBody = finalBody.replace(
+          pendingRegex,
+          (full, origLabel, pendingId) => {
+            const uploaded = uploadedMap.get(pendingId);
+            if (!uploaded) return origLabel;
+            return `[${uploaded.name}](attachment:${uploaded.path})`;
+          },
+        );
+        setUploadingImage(false);
+      }
+
+      const res = await axios.post(
+        route("comments.store", {}, false),
+        {
+          commentable_type: type,
+          commentable_id: id,
+          body: finalBody,
+          parent_id: parentId,
+        },
+        {
+          headers: { Accept: "application/json" },
+        },
+      );
+
+      if (quillRef.current) {
+        quillRef.current.setText("");
+      }
+      pendingFilesRef.current.clear();
+      setBody("");
+      setIsEmpty(true);
+      setError(null);
+
+      if (res.data?.comment) {
+        onCreated?.(res.data.comment);
+      }
+      onDone?.();
+    } catch (err) {
+      setUploadingImage(false);
+      const errs = err.response?.data?.errors;
+      const firstErr = errs ? Object.values(errs).flat()[0] : null;
+      setError(
+        firstErr || err.response?.data?.message || "Failed to post comment.",
+      );
+    } finally {
+      setProcessing(false);
+    }
   };
 
   return (
     <form onSubmit={submit} className="relative">
-      <textarea
-        ref={ref}
-        value={body}
-        autoFocus={autoFocus}
-        rows={parentId ? 2 : 3}
-        placeholder="Write a comment... type @ to mention a member"
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/gif,image/webp"
+        className="hidden"
         onChange={(e) => {
-          setBody(e.target.value);
-          detect(e.target.value, e.target.selectionStart);
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (file) uploadAndInsertAttachment(file);
         }}
-        onKeyDown={onKeyDown}
-        className="w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm"
       />
+      <input
+        ref={videoInputRef}
+        type="file"
+        accept="video/mp4,video/webm,video/ogg,video/quicktime"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (file) uploadAndInsertAttachment(file);
+        }}
+      />
+
+      <div
+        ref={editorContainerRef}
+        className={`comment-quill ${parentId ? "comment-quill-reply" : ""}`}
+      />
+
       {matches.length > 0 && (
-        <ul className="absolute z-20 left-0 mt-1 w-64 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md shadow-lg overflow-hidden">
+        <ul className="absolute z-30 left-0 mt-1 w-64 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md shadow-lg overflow-hidden">
           {matches.map((u, i) => (
             <li
               key={u.id}
@@ -240,21 +878,37 @@ function CommentForm({
           ))}
         </ul>
       )}
-      {error && <p className="text-sm text-red-600 mt-1">{error}</p>}
-      <div className="mt-2 flex gap-2 justify-end">
-        {onDone && (
-          <button
-            type="button"
-            onClick={onDone}
-            className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-          >
-            Cancel
-          </button>
-        )}
-        <PrimaryButton disabled={processing || !body.trim()}>
-          {parentId ? "Reply" : "Comment"}
-        </PrimaryButton>
+
+      <div className="mt-1.5 flex items-center justify-between gap-2">
+        <div className="text-xs text-gray-500 dark:text-gray-400">
+          {uploadingImage ? (
+            <span className="text-indigo-600 dark:text-indigo-400 font-medium animate-pulse">
+              Uploading attachment...
+            </span>
+          ) : (
+            <span>
+              Tip: Type @ to mention members. Images up to 2MB, videos up to
+              10MB.
+            </span>
+          )}
+        </div>
+        <div className="flex gap-2 justify-end">
+          {onDone && (
+            <button
+              type="button"
+              onClick={onDone}
+              className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+            >
+              Cancel
+            </button>
+          )}
+          <PrimaryButton disabled={processing || uploadingImage || isEmpty}>
+            {parentId ? "Reply" : "Comment"}
+          </PrimaryButton>
+        </div>
       </div>
+
+      {error && <p className="text-sm text-red-600 mt-1">{error}</p>}
     </form>
   );
 }
@@ -267,6 +921,9 @@ function CommentItem({
   mentionable,
   canDelete,
   onDelete,
+  onCreated,
+  onPreviewImage,
+  onOpenAttachment,
   depth = 0,
 }) {
   const [replying, setReplying] = useState(false);
@@ -296,9 +953,19 @@ function CommentItem({
               {comment.created_at_human}
             </span>
           </div>
-          <p className="mt-1 text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap break-words">
-            {renderBody(comment.body, comment.mentions, mentionable)}
-          </p>
+          <div
+            className={`mt-1 text-sm text-gray-800 dark:text-gray-200 break-words ${
+              isHtmlComment(comment.body) ? "" : "whitespace-pre-wrap"
+            }`}
+          >
+            {renderBody(
+              comment.body,
+              comment.mentions,
+              mentionable,
+              onPreviewImage,
+              onOpenAttachment,
+            )}
+          </div>
           <div className="mt-1 text-xs flex gap-3 text-gray-500 dark:text-gray-400">
             {depth === 0 && (
               <button
@@ -324,6 +991,7 @@ function CommentItem({
                 id={id}
                 parentId={comment.id}
                 mentionable={mentionable}
+                onCreated={onCreated}
                 autoFocus
                 onDone={() => setReplying(false)}
               />
@@ -341,6 +1009,9 @@ function CommentItem({
           mentionable={mentionable}
           canDelete={canDelete}
           onDelete={onDelete}
+          onCreated={onCreated}
+          onPreviewImage={onPreviewImage}
+          onOpenAttachment={onOpenAttachment}
           depth={1}
         />
       ))}
@@ -356,6 +1027,7 @@ export default function CommentSection({
 }) {
   const { auth } = usePage().props;
   const [comments, setComments] = useState(initial);
+  const [previewImage, setPreviewImage] = useState(null);
 
   useEffect(() => setComments(initial), [initial]);
 
@@ -385,18 +1057,65 @@ export default function CommentSection({
     };
   }, [type, id, auth?.user?.id]);
 
+  const handleOpenAttachment = useCallback(
+    async (path, fallbackName) => {
+      try {
+        const res = await axios.get(
+          route("comments.attachmentUrl", {}, false),
+          {
+            params: {
+              commentable_type: type,
+              commentable_id: id,
+              path,
+            },
+          },
+        );
+        if (res.data?.url) {
+          const isVideo =
+            res.data.media_type === "video" ||
+            /\.(mp4|webm|ogg|mov)$/i.test(path || fallbackName || "");
+          setPreviewImage({
+            src: res.data.url,
+            alt: res.data.name || fallbackName || "Attachment",
+            mediaType: isVideo ? "video" : "image",
+            isTemporary: true,
+            expiresAt: res.data.expires_at,
+          });
+        }
+      } catch (err) {
+        alert(
+          err.response?.data?.message ||
+            "Could not generate temporary URL for this attachment.",
+        );
+      }
+    },
+    [type, id],
+  );
+
+  const handleCommentAdded = useCallback((newComment) => {
+    if (!newComment) return;
+    setComments((prev) =>
+      prev.some((c) => c.id === newComment.id) ? prev : [...prev, newComment],
+    );
+  }, []);
+
   const isPrivileged = ["admin", "manager"].includes(auth.user.role);
   const canDelete = (c) => isPrivileged || c.author.id === auth.user.id;
 
-  const onDelete = (c) => {
+  const onDelete = async (c) => {
     if (!confirm("Delete this comment?")) return;
-    router.delete(route("comments.destroy", c.id), {
-      preserveScroll: true,
-      onSuccess: () =>
-        setComments((prev) =>
-          prev.filter((x) => x.id !== c.id && x.parent_id !== c.id),
-        ),
-    });
+    try {
+      await axios.delete(route("comments.destroy", c.id, false), {
+        headers: { Accept: "application/json" },
+      });
+      setComments((prev) =>
+        prev.filter((x) => x.id !== c.id && x.parent_id !== c.id),
+      );
+    } catch {
+      router.delete(route("comments.destroy", c.id, false), {
+        preserveScroll: true,
+      });
+    }
   };
 
   const roots = comments.filter((c) => !c.parent_id);
@@ -406,12 +1125,17 @@ export default function CommentSection({
     <div className="p-6 text-gray-900 dark:text-gray-100">
       <h3 className="text-lg font-bold">Comments ({comments.length})</h3>
       <div className="mt-3">
-        <CommentForm type={type} id={id} mentionable={mentionable} />
+        <CommentForm
+          type={type}
+          id={id}
+          mentionable={mentionable}
+          onCreated={handleCommentAdded}
+        />
       </div>
       {roots.length === 0 && (
         <p className="mt-4 text-sm text-gray-500">No comments yet.</p>
       )}
-      {[...roots].reverse().map((c) => (
+      {roots.map((c) => (
         <CommentItem
           key={c.id}
           comment={c}
@@ -421,8 +1145,62 @@ export default function CommentSection({
           mentionable={mentionable}
           canDelete={canDelete}
           onDelete={onDelete}
+          onCreated={handleCommentAdded}
+          onPreviewImage={setPreviewImage}
+          onOpenAttachment={handleOpenAttachment}
         />
       ))}
+
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div
+            className="relative max-w-4xl max-h-[90vh] flex flex-col items-center bg-gray-900/95 p-4 rounded-xl border border-gray-700 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {previewImage.mediaType === "video" ? (
+              <video
+                src={previewImage.src}
+                controls
+                autoPlay
+                className="max-h-[75vh] max-w-full rounded-lg bg-black"
+              />
+            ) : (
+              <img
+                src={previewImage.src}
+                alt={previewImage.alt}
+                className="max-h-[75vh] max-w-full rounded-lg object-contain bg-black/40"
+              />
+            )}
+            <div className="mt-3 w-full flex flex-wrap items-center justify-between gap-4 text-xs text-gray-200">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="font-semibold truncate">
+                  {previewImage.alt}
+                </span>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <a
+                  href={previewImage.src}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline text-indigo-300 hover:text-indigo-200 font-medium"
+                >
+                  Open temporary URL &rarr;
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPreviewImage(null)}
+                  className="px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-white"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

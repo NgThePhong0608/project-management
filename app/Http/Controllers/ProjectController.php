@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\ProjectMembersAdded;
 use App\Http\Requests\StoreProjectRequest;
 use App\Http\Requests\UpdateProjectRequest;
 use App\Http\Resources\CommentResource;
@@ -204,6 +205,8 @@ class ProjectController extends Controller
                 'added_by' => auth()->id(),
             ],
         ]);
+
+        ProjectMembersAdded::dispatch($project, auth()->user(), [$newOwner->id], 'manager', 'quick_assigned');
 
         return back()->with('success', "Project \"{$project->name}\" was assigned to {$newOwner->name}!");
     }

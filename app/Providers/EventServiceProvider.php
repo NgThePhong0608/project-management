@@ -2,22 +2,21 @@
 
 namespace App\Providers;
 
-use Illuminate\Auth\Events\Registered;
-use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
-use Illuminate\Support\Facades\Event;
 
 class EventServiceProvider extends ServiceProvider
 {
     /**
      * The event to listener mappings for the application.
      *
+     * Note: Laravel 12 automatically discovers listeners in app/Listeners
+     * via type-hinted handle() methods and registers Registered -> SendEmailVerificationNotification
+     * in the framework base EventServiceProvider. Do not duplicate them here.
+     *
      * @var array<class-string, array<int, class-string>>
      */
     protected $listen = [
-        Registered::class => [
-            SendEmailVerificationNotification::class,
-        ],
+        //
     ];
 
     /**
