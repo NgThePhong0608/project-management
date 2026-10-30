@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ChatController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\NotificationController;
@@ -56,6 +57,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('notifications.show');
         Route::post('{id}/read', [NotificationController::class, 'markAsRead'])
             ->name('notifications.read');
+    });
+
+    Route::prefix('chat')->name('chat.')->group(function () {
+        Route::get('/', [ChatController::class, 'index'])->name('index');
+        Route::post('/start/{user}', [ChatController::class, 'startDirect'])->name('startDirect');
+        Route::get('/{conversation}/messages', [ChatController::class, 'messages'])->name('messages');
+        Route::post('/{conversation}/messages', [ChatController::class, 'sendMessage'])->name('sendMessage');
+        Route::post('/{conversation}/read', [ChatController::class, 'markAsRead'])->name('markAsRead');
     });
 });
 

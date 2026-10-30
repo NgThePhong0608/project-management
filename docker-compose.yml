@@ -75,6 +75,30 @@ services:
       - app
       - redis
 
+  dynamodb:
+    image: amazon/dynamodb-local:latest
+    container_name: project-management-dynamodb-1
+    restart: unless-stopped
+    user: root
+    ports:
+      - "8000:8000"
+    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath /home/dynamodblocal/data"
+    volumes:
+      - dynamodb-data:/home/dynamodblocal/data
+
+  dynamodb-admin:
+    image: aaronshaf/dynamodb-admin:latest
+    container_name: project-management-dynamodb-admin-1
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      DYNAMO_ENDPOINT: http://dynamodb:8000
+      AWS_REGION: ap-southeast-1
+    depends_on:
+      - dynamodb
+
 volumes:
   mysql-data:
   redis-data:
+  dynamodb-data:

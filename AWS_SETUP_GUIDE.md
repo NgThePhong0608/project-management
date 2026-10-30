@@ -268,12 +268,31 @@ sudo chmod -R 777 /home/ec2-user/storage
 
 ---
 
-## 7. Amazon S3 (Lưu trữ Tệp tin & Media Upload)
+## 7. Cloud Storage: Cloudflare R2 & Amazon S3
 
 ### Vai trò:
 - Lưu trữ toàn bộ avatar, tài liệu, file đính kèm của người dùng tách biệt hoàn toàn khỏi ổ cứng EC2.
 
-### Quy trình thiết lập:
+### 1. Cloudflare R2 (Lựa chọn Tối ưu Chi phí - $0 Băng thông):
+Hệ thống tích hợp sẵn disk `r2` hoàn toàn tương thích S3 API:
+- **10 GB dung lượng lưu trữ miễn phí hàng tháng**.
+- **$0 phí băng thông tải ra (Zero Egress Fees)**: Tiết kiệm tối đa chi phí so với AWS S3 khi người dùng xem/tải nhiều ảnh/video.
+- **Cấu hình trong `.env`:**
+  ```ini
+  FILESYSTEM_DISK=r2
+  CLOUDFLARE_R2_ACCESS_KEY_ID=<your-r2-access-key-id>
+  CLOUDFLARE_R2_SECRET_ACCESS_KEY=<your-r2-secret-access-key>
+  CLOUDFLARE_R2_BUCKET=<your-bucket-name>
+  CLOUDFLARE_R2_ENDPOINT=https://<account_id>.r2.cloudflarestorage.com
+  CLOUDFLARE_R2_URL=https://<your-custom-domain-or-r2-dev-url>
+  ```
+
+### 2. Amazon S3 (AWS Native Storage):
+Dùng khi `FILESYSTEM_DISK=s3`:
+- Kết nối trực tiếp tới bucket Amazon S3 thật tại Region `ap-southeast-1`.
+- Được cấu hình tự động thông qua SSM Parameter Store `/pm-app/dev/env` khi deploy.
+
+### Quy trình thiết lập trên AWS S3 Thật:
 1. **Tạo Bucket**: Tên duy nhất toàn cầu (ví dụ `pm-storage-phong-01`), Region `ap-southeast-1`.
 2. **Bucket Policy (Public Read cho Web Client)**:
    ```json
