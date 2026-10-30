@@ -7,6 +7,7 @@ import NotificationToast from "@/Components/NotificationToast";
 import IdleLogoutModal from "@/Components/IdleLogoutModal";
 import ResponsiveNavLink from "@/Components/ResponsiveNavLink";
 import { Link, usePage } from "@inertiajs/react";
+import { ChatBubbleLeftRightIcon } from "@heroicons/react/24/outline";
 
 export default function Authenticated({ user, header, children }) {
   const { auth } = usePage().props;
@@ -70,6 +71,12 @@ export default function Authenticated({ user, header, children }) {
                 >
                   Tasks
                 </NavLink>
+                <NavLink
+                  href={route("chat.index")}
+                  active={route().current("chat.*")}
+                >
+                  Messages
+                </NavLink>
                 {auth?.can?.manageUsers && (
                   <NavLink
                     href={route("user.index")}
@@ -82,6 +89,13 @@ export default function Authenticated({ user, header, children }) {
             </div>
 
             <div className="hidden sm:flex sm:items-center sm:ms-6">
+              <Link
+                href={route("chat.index")}
+                className="relative p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition me-1"
+                title="Messages & Chat"
+              >
+                <ChatBubbleLeftRightIcon className="w-6 h-6" />
+              </Link>
               <NotificationDropdown />
               <div className="ms-3 relative">
                 <Dropdown>
@@ -187,6 +201,12 @@ export default function Authenticated({ user, header, children }) {
               active={route().current("dashboard")}
             >
               Dashboard
+            </ResponsiveNavLink>
+            <ResponsiveNavLink
+              href={route("chat.index")}
+              active={route().current("chat.*")}
+            >
+              Messages
             </ResponsiveNavLink>
           </div>
 

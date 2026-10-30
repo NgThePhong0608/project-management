@@ -32,12 +32,18 @@ return [
     ],
 
     'aws' => [
+        'mode' => env('AWS_MODE', 'local'),
         'key' => env('AWS_ACCESS_KEY_ID'),
         'secret' => env('AWS_SECRET_ACCESS_KEY'),
         'region' => env('AWS_DEFAULT_REGION', 'ap-southeast-1'),
         'sns_topic_arn' => env('AWS_SNS_TOPIC_ARN'),
         'cloudwatch_log_group' => env('CLOUDWATCH_LOG_GROUP', '/pm-app/dev'),
         'cloudwatch_log_stream' => env('CLOUDWATCH_LOG_STREAM', 'notifications'),
+    ],
+
+    'dynamodb' => [
+        'endpoint' => env('DYNAMODB_ENDPOINT', env('AWS_MODE') === 'local' ? 'http://dynamodb:8000' : null),
+        'table_messages' => env('DYNAMODB_TABLE_MESSAGES', 'chat_messages'),
     ],
 
     'turnstile' => [
