@@ -31,7 +31,7 @@ export function useChatChannel({
         channel.listenForWhisper("typing", (event) => {
             if (event && event.userId !== currentUserId) {
                 setIsTyping(true);
-                setTypingUser(event.userName || "Đối phương");
+                setTypingUser(event.userName || "Someone");
 
                 if (typingTimerRef.current) {
                     clearTimeout(typingTimerRef.current);

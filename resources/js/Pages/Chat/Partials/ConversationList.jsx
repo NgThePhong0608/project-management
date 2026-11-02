@@ -48,6 +48,7 @@ export default function ConversationList({
             const updated = {
               ...existing,
               ...(incomingConv || {}),
+              partner: existing.partner,
               last_message:
                 msg?.body ||
                 incomingConv?.last_message ||
@@ -64,8 +65,20 @@ export default function ConversationList({
             return [updated, ...remaining];
           } else if (incomingConv) {
             // New conversation discovered in real time: prepend to list
+            const derivedPartner =
+              incomingConv.type === "group"
+                ? null
+                : incomingConv.users?.find(
+                    (u) => Number(u.id) === Number(msg.user_id),
+                  ) || {
+                    id: msg.user_id,
+                    name: msg.user_name,
+                    avatar_url: msg.avatar_url,
+                  };
+
             const newConv = {
               ...incomingConv,
+              partner: derivedPartner,
               last_message: msg?.body || incomingConv.last_message,
               last_message_at:
                 msg?.created_at ||

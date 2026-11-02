@@ -28,13 +28,26 @@ export default function ChatArea({
   const messagesEndRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const textareaRef = useRef(null);
+  const prevConversationIdRef = useRef(conversation?.id);
+  const prevLastMessageIdRef = useRef(null);
 
-  // Auto-scroll to bottom on new messages
+  // Auto-scroll to bottom on conversation switch or when a new message is appended at the bottom
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    const isConvChanged = conversation?.id !== prevConversationIdRef.current;
+    const currentLastMessage =
+      messages.length > 0 ? messages[messages.length - 1] : null;
+    const currentLastMessageId = currentLastMessage?.id;
+    const isNewMessageAtBottom =
+      Boolean(currentLastMessageId) &&
+      currentLastMessageId !== prevLastMessageIdRef.current;
+
+    if (isConvChanged || isNewMessageAtBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages, isTyping]);
+
+    prevConversationIdRef.current = conversation?.id;
+    prevLastMessageIdRef.current = currentLastMessageId;
+  }, [conversation?.id, messages]);
 
   const handleInputChange = (e) => {
     setInputBody(e.target.value);

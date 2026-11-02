@@ -28,7 +28,7 @@ class DynamoDbService
         $secret = config('services.aws.secret');
         $endpoint = config('services.dynamodb.endpoint');
 
-        // Bất cứ khi nào có endpoint local hoặc mode=local mà key bị rỗng, dùng dummy credentials
+        // Fallback to dummy credentials whenever local endpoint or mode=local has empty keys
         $isLocal = config('services.aws.mode', 'local') === 'local' || ! empty($endpoint);
         if ($isLocal && (empty($key) || empty($secret))) {
             $key = $key ?: 'dummyLocalKey';
