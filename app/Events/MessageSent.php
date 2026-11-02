@@ -14,11 +14,15 @@ class MessageSent implements ShouldBroadcastNow
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     /**
-     * Create a new event instance.
-     *
      * @param  array<string, mixed>  $message
+     * @param  array<string, mixed>  $conversation
+     * @param  array<int>  $recipientIds
      */
-    public function __construct(public array $message) {}
+    public function __construct(
+        public array $message,
+        public array $conversation = [],
+        public array $recipientIds = []
+    ) {}
 
     /**
      * Get the channels the event should broadcast on.
@@ -27,28 +31,30 @@ class MessageSent implements ShouldBroadcastNow
      */
     public function broadcastOn(): array
     {
-        return [
+        $channels = [
             new PrivateChannel('chat.'.$this->message['conversation_id']),
         ];
+
+        foreach ($this->recipientIds as $recipientId) {
+            $channels[] = new PrivateChannel('App.Models.User.'.$recipientId);
+        }
+
+        return $channels;
     }
 
-    /**
-     * The event's broadcast name.
-     */
     public function broadcastAs(): string
     {
         return 'message.sent';
     }
 
     /**
-     * Get the data to broadcast.
-     *
      * @return array<string, mixed>
      */
     public function broadcastWith(): array
     {
         return [
             'message' => $this->message,
+            'conversation' => $this->conversation,
         ];
     }
 }

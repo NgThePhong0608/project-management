@@ -23,9 +23,3 @@ Broadcast::channel('chat.{conversationId}', function ($user, $conversationId) {
         ->whereHas('users', fn ($q) => $q->where('users.id', $user->id))
         ->exists();
 });
-
-Broadcast::channel('chat.{conversationId}', function ($user, $conversationId) {
-    return Conversation::where('id', $conversationId)
-        ->whereHas('users', fn ($q) => $q->where('users.id', $user->id))
-        ->exists();
-});
