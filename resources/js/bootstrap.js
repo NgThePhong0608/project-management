@@ -25,10 +25,9 @@ if (import.meta.env.VITE_REVERB_APP_KEY) {
         broadcaster: "reverb",
         key: import.meta.env.VITE_REVERB_APP_KEY,
         wsHost:
-            import.meta.env.VITE_REVERB_HOST ||
-            (typeof window !== "undefined"
+            typeof window !== "undefined" && window.location.hostname
                 ? window.location.hostname
-                : "localhost"),
+                : import.meta.env.VITE_REVERB_HOST || "localhost",
         wsPort: import.meta.env.VITE_REVERB_PORT ?? 80,
         wssPort: import.meta.env.VITE_REVERB_PORT ?? 443,
         forceTLS: (import.meta.env.VITE_REVERB_SCHEME ?? "https") === "https",
