@@ -554,7 +554,7 @@ export default function ChatArea({
       </div>
 
       {/* Group Members Modal */}
-      {isGroup && (
+      {isGroup && showMembersModal && (
         <GroupMembersModal
           isOpen={showMembersModal}
           onClose={() => setShowMembersModal(false)}

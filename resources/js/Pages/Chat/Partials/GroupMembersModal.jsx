@@ -24,27 +24,29 @@ export default function GroupMembersModal({
   const [errorMessage, setErrorMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
-  if (!isOpen || !conversation) return null;
-
-  const users = conversation.users || [];
-  const canManage = Boolean(conversation.can_manage);
-  const isCreator = Boolean(conversation.is_creator);
+  const users = conversation?.users || [];
+  const canManage = Boolean(conversation?.can_manage);
+  const isCreator = Boolean(conversation?.is_creator);
 
   // Available colleagues who are not yet members
   const availableColleagues = useMemo(() => {
+    if (!isOpen || !conversation) return [];
     const existingIds = new Set(users.map((u) => Number(u.id)));
     return colleagues.filter((c) => !existingIds.has(Number(c.id)));
-  }, [colleagues, users]);
+  }, [isOpen, conversation, colleagues, users]);
 
   // Filtered members by search query
   const filteredUsers = useMemo(() => {
+    if (!isOpen || !conversation) return [];
     if (!searchQuery.trim()) return users;
     const q = searchQuery.toLowerCase();
     return users.filter(
       (u) =>
         u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q),
     );
-  }, [users, searchQuery]);
+  }, [isOpen, conversation, users, searchQuery]);
+
+  if (!isOpen || !conversation) return null;
 
   const handleAddMember = async (e) => {
     e.preventDefault();
