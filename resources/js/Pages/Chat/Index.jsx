@@ -14,8 +14,11 @@ export default function ChatIndex({
 }) {
   const [conversations, setConversations] = useState(initialConversations);
   const [activeConversationId, setActiveConversationId] = useState(
-    initialConversationId ||
-      (conversations.length > 0 ? conversations[0].id : null),
+    initialConversationId
+      ? Number(initialConversationId)
+      : conversations.length > 0
+        ? Number(conversations[0].id)
+        : null,
   );
   const [messages, setMessages] = useState([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -27,16 +30,94 @@ export default function ChatIndex({
     setConversations(initialConversations);
   }, [initialConversations]);
 
-  useEffect(() => {
-    if (initialConversationId) {
-      setActiveConversationId(initialConversationId);
-    }
-  }, [initialConversationId]);
-
   const activeConversation = useMemo(
-    () => conversations.find((c) => c.id === activeConversationId) || null,
+    () =>
+      conversations.find(
+        (c) => Number(c.id) === Number(activeConversationId),
+      ) || null,
     [conversations, activeConversationId],
   );
+
+  // Handler for selecting an active conversation
+  const handleSelectConversation = useCallback((id) => {
+    if (!id) {
+      setActiveConversationId(null);
+      window.dispatchEvent(
+        new CustomEvent("chat:conversation-selected", {
+          detail: { conversationId: null },
+        }),
+      );
+      return;
+    }
+
+    const convId = Number(id);
+    setActiveConversationId(convId);
+
+    // Emit event so AuthenticatedLayout knows which conversation is active
+    window.dispatchEvent(
+      new CustomEvent("chat:conversation-selected", {
+        detail: { conversationId: convId },
+      }),
+    );
+
+    // Reset local unread_count and emit decrement to update global unread badge
+    setConversations((prev) => {
+      const target = prev.find((c) => Number(c.id) === convId);
+      const unreadCount =
+        Number(target?.unread_count) || (target?.is_unread ? 1 : 0);
+
+      if (unreadCount > 0) {
+        window.dispatchEvent(
+          new CustomEvent("chat:unread-count-updated", {
+            detail: { decrement: unreadCount },
+          }),
+        );
+      }
+
+      return prev.map((c) =>
+        Number(c.id) === convId
+          ? { ...c, unread_count: 0, is_unread: false }
+          : c,
+      );
+    });
+  }, []);
+
+  // Support URL query param deep linking on mount
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const queryConvId =
+      urlParams.get("conversation_id") || urlParams.get("conversation");
+
+    if (queryConvId) {
+      const parsed = Number(queryConvId);
+      if (!isNaN(parsed)) {
+        handleSelectConversation(parsed);
+        return;
+      }
+    }
+
+    if (initialConversationId) {
+      handleSelectConversation(Number(initialConversationId));
+      return;
+    }
+
+    if (conversations.length > 0) {
+      handleSelectConversation(Number(conversations[0].id));
+    }
+  }, []);
+
+  // Clear active conversation in layout when unmounting chat page
+  useEffect(() => {
+    return () => {
+      window.dispatchEvent(
+        new CustomEvent("chat:conversation-selected", {
+          detail: { conversationId: null },
+        }),
+      );
+    };
+  }, []);
 
   // Fetch messages when active conversation changes
   const fetchMessages = useCallback(async (conversationId) => {
@@ -53,7 +134,9 @@ export default function ChatIndex({
       // Clear unread badge in local state
       setConversations((prev) =>
         prev.map((c) =>
-          c.id === conversationId ? { ...c, is_unread: false } : c,
+          Number(c.id) === Number(conversationId)
+            ? { ...c, unread_count: 0, is_unread: false }
+            : c,
         ),
       );
     } catch (error) {
@@ -91,13 +174,12 @@ export default function ChatIndex({
     }
   };
 
-  // Handle incoming real-time message from Reverb WebSocket
+  // Handle incoming real-time message from Reverb WebSocket for active conversation
   const handleNewMessage = useCallback(
     (newMsg) => {
       // If belongs to currently opened conversation, append to list
       if (Number(newMsg.conversation_id) === Number(activeConversationId)) {
         setMessages((prev) => {
-          // Prevent duplicates
           if (prev.some((m) => m.id === newMsg.id)) return prev;
           return [...prev, newMsg];
         });
@@ -106,18 +188,23 @@ export default function ChatIndex({
           .catch(() => {});
       }
 
-      // Update conversations list ordering and unread badge
+      // Update conversations list ordering and last message preview
       setConversations((prev) => {
         const index = prev.findIndex(
           (c) => Number(c.id) === Number(newMsg.conversation_id),
         );
         if (index === -1) return prev;
 
+        const isCurrentActive =
+          Number(newMsg.conversation_id) === Number(activeConversationId);
         const updated = {
           ...prev[index],
+          last_message: newMsg.body,
           last_message_at: newMsg.created_at,
-          is_unread:
-            Number(newMsg.conversation_id) !== Number(activeConversationId),
+          unread_count: isCurrentActive
+            ? 0
+            : (prev[index].unread_count || 0) + 1,
+          is_unread: !isCurrentActive,
         };
 
         const remaining = prev.filter(
@@ -155,15 +242,21 @@ export default function ChatIndex({
     // 1. Optimistic append
     setMessages((prev) => [...prev, optimisticMessage]);
 
-    // Update conversation last_message_at locally
+    // Update conversation last_message & last_message_at locally
     setConversations((prev) => {
-      const target = prev.find((c) => c.id === activeConversationId);
+      const target = prev.find(
+        (c) => Number(c.id) === Number(activeConversationId),
+      );
       if (!target) return prev;
       const updated = {
         ...target,
+        last_message: body,
         last_message_at: optimisticMessage.created_at,
       };
-      return [updated, ...prev.filter((c) => c.id !== activeConversationId)];
+      return [
+        updated,
+        ...prev.filter((c) => Number(c.id) !== Number(activeConversationId)),
+      ];
     });
 
     try {
@@ -213,7 +306,7 @@ export default function ChatIndex({
 
       <div className="py-4 sm:py-6">
         <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden flex h-[78vh] min-h-[520px]">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden flex h-[78vh] min-h-[520px]">
             {/* Left Column: Conversation List */}
             <div
               className={`w-full md:w-80 lg:w-96 flex-shrink-0 ${
@@ -222,10 +315,14 @@ export default function ChatIndex({
             >
               <ConversationList
                 conversations={conversations}
+                setConversations={setConversations}
                 activeConversationId={activeConversationId}
-                onSelectConversation={(id) => setActiveConversationId(id)}
+                onSelectConversation={handleSelectConversation}
                 colleagues={colleagues}
                 onStartDirect={handleStartDirect}
+                onGroupCreated={(newConv) => {
+                  handleSelectConversation(newConv.id);
+                }}
               />
             </div>
 
@@ -244,10 +341,11 @@ export default function ChatIndex({
                 onLoadMore={handleLoadMore}
                 hasMore={Boolean(nextCursor)}
                 loadingMore={loadingMore}
+                loadingMessages={loadingMessages}
                 isTyping={isTyping}
                 typingUser={typingUser}
                 onTyping={sendTyping}
-                onBack={() => setActiveConversationId(null)}
+                onBack={() => handleSelectConversation(null)}
               />
             </div>
           </div>

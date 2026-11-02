@@ -4,7 +4,10 @@ import {
   ArrowLeftIcon,
   ArrowPathIcon,
 } from "@heroicons/react/24/solid";
-import { ChatBubbleLeftRightIcon } from "@heroicons/react/24/outline";
+import {
+  ChatBubbleLeftRightIcon,
+  UserGroupIcon,
+} from "@heroicons/react/24/outline";
 
 export default function ChatArea({
   conversation,
@@ -88,15 +91,21 @@ export default function ChatArea({
     );
   }
 
+  const isGroup = conversation.type === "group";
   const partner = conversation.partner;
-  const partnerName = conversation.name || partner?.name || "Direct Message";
+  const partnerName = isGroup
+    ? conversation.name || "Group Chat"
+    : conversation.name || partner?.name || "Direct Message";
   const partnerAvatar = partner?.avatar_url;
+
+  const memberCount = conversation.users?.length || 0;
+  const memberNames = conversation.users?.map((u) => u.name).join(", ") || "";
 
   return (
     <div className="flex-1 flex flex-col h-full bg-gray-50 dark:bg-gray-900">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3.5 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm z-10">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <button
             type="button"
             onClick={onBack}
@@ -105,8 +114,12 @@ export default function ChatArea({
             <ArrowLeftIcon className="w-5 h-5" />
           </button>
 
-          <div className="relative">
-            {partnerAvatar ? (
+          <div className="relative flex-shrink-0">
+            {isGroup ? (
+              <div className="w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center shadow-sm">
+                <UserGroupIcon className="w-6 h-6" />
+              </div>
+            ) : partnerAvatar ? (
               <img
                 src={partnerAvatar}
                 alt={partnerName}
@@ -117,25 +130,35 @@ export default function ChatArea({
                 {partnerName.charAt(0).toUpperCase()}
               </div>
             )}
-            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white dark:border-gray-800 rounded-full" />
+            {!isGroup && (
+              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white dark:border-gray-800 rounded-full" />
+            )}
           </div>
 
-          <div>
-            <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100 leading-tight">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100 leading-tight truncate">
               {partnerName}
             </h2>
             <div className="h-4 flex items-center">
               {isTyping ? (
-                <span className="text-xs text-indigo-600 dark:text-indigo-400 font-medium flex items-center gap-1 animate-pulse">
-                  <span>{typingUser || "Partner"} is typing</span>
+                <span className="text-xs text-indigo-600 dark:text-indigo-400 font-medium flex items-center gap-1 animate-pulse truncate">
+                  <span>{typingUser || "Someone"} is typing</span>
                   <span className="inline-flex gap-0.5">
                     <span className="w-1 h-1 bg-indigo-600 rounded-full animate-bounce" />
                     <span className="w-1 h-1 bg-indigo-600 rounded-full animate-bounce [animation-delay:0.2s]" />
                     <span className="w-1 h-1 bg-indigo-600 rounded-full animate-bounce [animation-delay:0.4s]" />
                   </span>
                 </span>
+              ) : isGroup ? (
+                <span
+                  className="text-xs text-gray-500 dark:text-gray-400 truncate"
+                  title={memberNames}
+                >
+                  {memberCount} {memberCount === 1 ? "member" : "members"}
+                  {memberNames ? `: ${memberNames}` : ""}
+                </span>
               ) : (
-                <span className="text-xs text-gray-500 dark:text-gray-400">
+                <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
                   {partner?.email || "Active conversation"}
                 </span>
               )}
@@ -196,34 +219,41 @@ export default function ChatArea({
                         className="w-7 h-7 rounded-full object-cover ring-1 ring-gray-200 dark:ring-gray-700"
                       />
                     ) : (
-                      <div className="w-7 h-7 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 flex items-center justify-center text-xs font-bold">
+                      <div className="w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xs font-bold">
                         {(msg.user_name || "U").charAt(0).toUpperCase()}
                       </div>
                     )}
                   </div>
                 )}
 
-                <div
-                  className={`max-w-[78%] sm:max-w-md rounded-2xl px-4 py-2.5 shadow-sm text-sm break-words ${
-                    isMine
-                      ? `bg-indigo-600 text-white rounded-br-none ${
-                          isOptimistic ? "opacity-75" : ""
-                        }`
-                      : "bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200/80 dark:border-gray-700/80 rounded-bl-none"
-                  }`}
-                >
-                  <p className="whitespace-pre-wrap leading-relaxed">
-                    {msg.body}
-                  </p>
+                <div className="flex flex-col max-w-[78%] sm:max-w-md">
+                  {isGroup && !isMine && (
+                    <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 ml-1 mb-1 truncate">
+                      {msg.user_name || "Member"}
+                    </span>
+                  )}
                   <div
-                    className={`mt-1 flex items-center justify-end gap-1 text-[10px] ${
-                      isMine ? "text-indigo-200" : "text-gray-400"
+                    className={`rounded-2xl px-4 py-2.5 shadow-sm text-sm break-words ${
+                      isMine
+                        ? `bg-indigo-600 text-white rounded-br-none ${
+                            isOptimistic ? "opacity-75" : ""
+                          }`
+                        : "bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200/80 dark:border-gray-700/80 rounded-bl-none"
                     }`}
                   >
-                    <span>{formatMessageTime(msg.created_at)}</span>
-                    {isMine && (
-                      <span>{isOptimistic ? "• sending..." : "✓"}</span>
-                    )}
+                    <p className="whitespace-pre-wrap leading-relaxed">
+                      {msg.body}
+                    </p>
+                    <div
+                      className={`mt-1 flex items-center justify-end gap-1 text-[10px] ${
+                        isMine ? "text-indigo-200" : "text-gray-400"
+                      }`}
+                    >
+                      <span>{formatMessageTime(msg.created_at)}</span>
+                      {isMine && (
+                        <span>{isOptimistic ? "• sending..." : "✓"}</span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
