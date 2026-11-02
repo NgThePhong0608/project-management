@@ -122,6 +122,33 @@ export default function ChatIndex({
     };
   }, []);
 
+  // Handle revocation when current user is removed from a conversation
+  useEffect(() => {
+    const handleMemberRemoved = (e) => {
+      const { conversation_id, user_id } = e.detail || {};
+      if (Number(user_id) === Number(auth.user.id)) {
+        setConversations((prev) =>
+          prev.filter((c) => Number(c.id) !== Number(conversation_id)),
+        );
+        if (Number(activeConversationId) === Number(conversation_id)) {
+          setActiveConversationId(null);
+          setMessages([]);
+          setNextCursor(null);
+          window.dispatchEvent(
+            new CustomEvent("chat:conversation-selected", {
+              detail: { conversationId: null },
+            }),
+          );
+        }
+      }
+    };
+
+    window.addEventListener("chat:member-removed", handleMemberRemoved);
+    return () => {
+      window.removeEventListener("chat:member-removed", handleMemberRemoved);
+    };
+  }, [activeConversationId, auth.user.id]);
+
   // Fetch messages when active conversation changes
   const fetchMessages = useCallback(async (conversationId) => {
     if (!conversationId) return;

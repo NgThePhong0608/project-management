@@ -158,8 +158,17 @@ export default function Authenticated({ user, header, children }) {
       );
     });
 
+    channel.listen(".chat.member.removed", (event) => {
+      window.dispatchEvent(
+        new CustomEvent("chat:member-removed", {
+          detail: event,
+        }),
+      );
+    });
+
     return () => {
       channel.stopListening(".message.sent");
+      channel.stopListening(".chat.member.removed");
       channel.stopListening(
         ".Illuminate\\Notifications\\Events\\BroadcastNotificationCreated",
       );

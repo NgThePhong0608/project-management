@@ -27,13 +27,14 @@ class MessageSent implements ShouldBroadcastNow
     /**
      * Get the channels the event should broadcast on.
      *
+     * Deliver message content strictly to active participants' per-user private channels.
+     * Prevents removed participants with open chat tabs from continuing to receive messages.
+     *
      * @return array<int, Channel>
      */
     public function broadcastOn(): array
     {
-        $channels = [
-            new PrivateChannel('chat.'.$this->message['conversation_id']),
-        ];
+        $channels = [];
 
         foreach ($this->recipientIds as $recipientId) {
             $channels[] = new PrivateChannel('App.Models.User.'.$recipientId);

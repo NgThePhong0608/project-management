@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\ConversationMemberRemoved;
 use App\Events\MessageSent;
 use App\Models\Conversation;
 use App\Models\User;
@@ -156,6 +157,8 @@ class ChatController extends Controller
         }
 
         $conversation->users()->detach($user->id);
+
+        broadcast(new ConversationMemberRemoved($conversation->id, $user->id));
 
         return response()->json([
             'success' => true,

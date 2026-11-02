@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Chat;
 
+use App\Events\ConversationMemberRemoved;
+use App\Events\MessageSent;
 use App\Models\Conversation;
 use App\Models\User;
 use App\Services\DynamoDbService;
@@ -154,6 +156,8 @@ class ChatGroupAndUnreadApiTest extends TestCase
 
     public function test_can_remove_member_from_group(): void
     {
+        Event::fake();
+
         $group = Conversation::create([
             'type' => Conversation::TYPE_GROUP,
             'name' => 'DevOps',
@@ -175,6 +179,53 @@ class ChatGroupAndUnreadApiTest extends TestCase
             'conversation_id' => $group->id,
             'user_id' => $this->user1->id,
         ]);
+
+        Event::assertDispatched(ConversationMemberRemoved::class, function ($event) use ($group) {
+            return $event->conversationId === $group->id && $event->removedUserId === $this->user1->id;
+        });
+    }
+
+    public function test_removed_member_does_not_receive_subsequent_message_broadcast(): void
+    {
+        Event::fake();
+
+        $group = Conversation::create([
+            'type' => Conversation::TYPE_GROUP,
+            'name' => 'DevOps',
+            'created_by' => $this->creator->id,
+        ]);
+        $group->users()->attach([
+            $this->creator->id => ['unread_count' => 0],
+            $this->user1->id => ['unread_count' => 0],
+            $this->user2->id => ['unread_count' => 0],
+        ]);
+
+        // Remove user1
+        $this->actingAs($this->creator)->deleteJson(route('chat.removeMember', [
+            'conversation' => $group,
+            'user' => $this->user1,
+        ]))->assertOk();
+
+        Event::assertDispatched(ConversationMemberRemoved::class, function ($event) use ($group) {
+            return $event->conversationId === $group->id && $event->removedUserId === $this->user1->id;
+        });
+
+        // Send new message in group
+        $this->actingAs($this->creator)->postJson(route('chat.sendMessage', $group), [
+            'message' => 'After removal message',
+        ])->assertCreated();
+
+        Event::assertDispatched(MessageSent::class, function (MessageSent $event) {
+            $channelNames = array_map(fn ($c) => $c->name, $event->broadcastOn());
+            // User2 is still a member -> receives broadcast
+            $this->assertContains('private-App.Models.User.'.$this->user2->id, $channelNames);
+            // User1 was removed -> DOES NOT receive broadcast
+            $this->assertNotContains('private-App.Models.User.'.$this->user1->id, $channelNames);
+            // Group conversation channel is NOT broadcast to
+            $this->assertNotContains('private-chat.'.$event->message['conversation_id'], $channelNames);
+
+            return true;
+        });
     }
 
     public function test_user_can_leave_group(): void

@@ -96,9 +96,9 @@ class ChatApiTest extends TestCase
         $response->assertCreated();
         $response->assertJson($expectedMessage);
 
-        Event::assertDispatched(MessageSent::class, function (MessageSent $event) use ($expectedMessage) {
+        Event::assertDispatched(MessageSent::class, function (MessageSent $event) use ($expectedMessage, $userB) {
             return $event->message['body'] === $expectedMessage['body']
-                && $event->broadcastOn()[0]->name === 'private-chat.'.$expectedMessage['conversation_id'];
+                && $event->broadcastOn()[0]->name === 'private-App.Models.User.'.$userB->id;
         });
 
         $conversation->refresh();

@@ -20,10 +20,14 @@ export function useChatChannel({
         const channel = window.Echo.private(channelName);
         channelRef.current = channel;
 
-        // 1. Listen for incoming messages broadcast by Reverb
-        channel.listen(".message.sent", (event) => {
-            if (event && event.message) {
-                onNewMessage?.(event.message);
+        // 1. Listen for member removal on the conversation channel to revoke subscription immediately
+        channel.listen(".chat.member.removed", (event) => {
+            if (event && Number(event.user_id) === Number(currentUserId)) {
+                window.Echo.leave(channelName);
+                channelRef.current = null;
+                window.dispatchEvent(
+                    new CustomEvent("chat:member-removed", { detail: event }),
+                );
             }
         });
 
@@ -52,7 +56,22 @@ export function useChatChannel({
             window.Echo.leave(channelName);
             channelRef.current = null;
         };
-    }, [conversationId, currentUserId, onNewMessage]);
+    }, [conversationId, currentUserId]);
+
+    // 3. Listen for incoming messages delivered strictly via current participant user channels
+    useEffect(() => {
+        const handleIncoming = (e) => {
+            const msg = e.detail?.message;
+            if (msg && Number(msg.conversation_id) === Number(conversationId)) {
+                onNewMessage?.(msg);
+            }
+        };
+
+        window.addEventListener("chat:message-received", handleIncoming);
+        return () => {
+            window.removeEventListener("chat:message-received", handleIncoming);
+        };
+    }, [conversationId, onNewMessage]);
 
     const sendTyping = useCallback(
         (userName) => {

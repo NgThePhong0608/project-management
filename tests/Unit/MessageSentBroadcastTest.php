@@ -7,7 +7,7 @@ use Tests\TestCase;
 
 class MessageSentBroadcastTest extends TestCase
 {
-    public function test_message_sent_broadcasts_on_chat_channel_and_user_channels(): void
+    public function test_message_sent_broadcasts_strictly_on_recipient_user_channels(): void
     {
         $message = [
             'id' => 'MSG#123',
@@ -28,7 +28,8 @@ class MessageSentBroadcastTest extends TestCase
 
         $channelNames = array_map(fn ($c) => $c->name, $channels);
 
-        $this->assertContains('private-chat.10', $channelNames);
+        // Security requirement: messages broadcast strictly to recipient user channels, NOT conversation channel
+        $this->assertNotContains('private-chat.10', $channelNames);
         $this->assertContains('private-App.Models.User.2', $channelNames);
         $this->assertContains('private-App.Models.User.3', $channelNames);
         $this->assertContains('private-App.Models.User.4', $channelNames);
