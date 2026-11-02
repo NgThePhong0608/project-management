@@ -65,6 +65,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/group', [ChatController::class, 'createGroup'])->name('createGroup');
         Route::post('/{conversation}/members', [ChatController::class, 'addMember'])->name('addMember');
         Route::delete('/{conversation}/members/{user}', [ChatController::class, 'removeMember'])->name('removeMember');
+        Route::patch('/{conversation}/members/{user}/role', [ChatController::class, 'updateMemberRole'])->name('updateMemberRole');
+        Route::post('/{conversation}/terminate', [ChatController::class, 'toggleTerminate'])->name('toggleTerminate');
+        Route::delete('/{conversation}', [ChatController::class, 'destroy'])->name('destroy');
         Route::post('/start/{user}', [ChatController::class, 'startDirect'])->name('startDirect');
         Route::get('/{conversation}/messages', [ChatController::class, 'messages'])->name('messages');
         Route::post('/{conversation}/messages', [ChatController::class, 'sendMessage'])->name('sendMessage');

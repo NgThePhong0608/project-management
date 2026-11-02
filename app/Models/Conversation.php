@@ -21,16 +21,18 @@ class Conversation extends Model
         'name',
         'created_by',
         'last_message_at',
+        'is_terminated',
     ];
 
     protected $casts = [
         'last_message_at' => 'datetime',
+        'is_terminated' => 'boolean',
     ];
 
     public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'conversation_user')
-            ->withPivot(['last_read_at', 'unread_count'])
+            ->withPivot(['last_read_at', 'unread_count', 'role'])
             ->withTimestamps();
     }
 
@@ -47,6 +49,17 @@ class Conversation extends Model
     public function isDirect(): bool
     {
         return $this->type === self::TYPE_DIRECT;
+    }
+
+    public function canManage(User $user): bool
+    {
+        if ($user->role === 'admin' || ((int) $this->created_by === (int) $user->id && $this->created_by !== null)) {
+            return true;
+        }
+
+        $pivot = $this->users->firstWhere('id', $user->id)?->pivot;
+
+        return ($pivot?->role ?? 'member') === 'manager';
     }
 
     public function getMemberCount(): int

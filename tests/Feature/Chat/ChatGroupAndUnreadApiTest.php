@@ -268,4 +268,121 @@ class ChatGroupAndUnreadApiTest extends TestCase
         ]));
         $removeResponse->assertStatus(400);
     }
+
+    public function test_manager_can_toggle_terminate_group_and_regular_members_cannot_send_messages(): void
+    {
+        $group = Conversation::create([
+            'type' => Conversation::TYPE_GROUP,
+            'name' => 'Project Alpha',
+            'created_by' => $this->creator->id,
+            'is_terminated' => false,
+        ]);
+        $group->users()->attach([
+            $this->creator->id => ['unread_count' => 0, 'role' => 'manager'],
+            $this->user1->id => ['unread_count' => 0, 'role' => 'member'],
+        ]);
+
+        // Creator (manager) terminates the group
+        $this->actingAs($this->creator)->postJson(route('chat.toggleTerminate', $group))
+            ->assertOk()
+            ->assertJsonPath('is_terminated', true);
+
+        $this->assertTrue((bool) $group->fresh()->is_terminated);
+
+        // Regular member cannot send message
+        $this->actingAs($this->user1)->postJson(route('chat.sendMessage', $group), [
+            'message' => 'Hello while terminated',
+        ])->assertStatus(403);
+
+        // Manager / Creator CAN send message even when terminated
+        $this->actingAs($this->creator)->postJson(route('chat.sendMessage', $group), [
+            'message' => 'Official announcement from manager',
+        ])->assertStatus(201);
+
+        // Creator resumes the group
+        $this->actingAs($this->creator)->postJson(route('chat.toggleTerminate', $group))
+            ->assertOk()
+            ->assertJsonPath('is_terminated', false);
+
+        $this->assertFalse((bool) $group->fresh()->is_terminated);
+
+        // Regular member can now send message
+        $this->actingAs($this->user1)->postJson(route('chat.sendMessage', $group), [
+            'message' => 'Back to work!',
+        ])->assertStatus(201);
+    }
+
+    public function test_non_manager_cannot_toggle_terminate_group(): void
+    {
+        $group = Conversation::create([
+            'type' => Conversation::TYPE_GROUP,
+            'name' => 'Project Beta',
+            'created_by' => $this->creator->id,
+        ]);
+        $group->users()->attach([
+            $this->creator->id => ['role' => 'manager'],
+            $this->user1->id => ['role' => 'member'],
+        ]);
+
+        $this->actingAs($this->user1)->postJson(route('chat.toggleTerminate', $group))
+            ->assertStatus(403);
+    }
+
+    public function test_manager_can_update_member_role(): void
+    {
+        $group = Conversation::create([
+            'type' => Conversation::TYPE_GROUP,
+            'name' => 'Ops Team',
+            'created_by' => $this->creator->id,
+        ]);
+        $group->users()->attach([
+            $this->creator->id => ['role' => 'manager'],
+            $this->user1->id => ['role' => 'member'],
+        ]);
+
+        // Regular member cannot promote
+        $this->actingAs($this->user1)->patchJson(route('chat.updateMemberRole', [
+            'conversation' => $group,
+            'user' => $this->user1,
+        ]), ['role' => 'manager'])->assertStatus(403);
+
+        // Creator/Manager promotes user1 to manager
+        $this->actingAs($this->creator)->patchJson(route('chat.updateMemberRole', [
+            'conversation' => $group,
+            'user' => $this->user1,
+        ]), ['role' => 'manager'])->assertOk();
+
+        $this->assertEquals('manager', $group->users()->where('users.id', $this->user1->id)->first()->pivot->role);
+
+        // Cannot demote creator
+        $this->actingAs($this->user1)->patchJson(route('chat.updateMemberRole', [
+            'conversation' => $group,
+            'user' => $this->creator,
+        ]), ['role' => 'member'])->assertStatus(403);
+    }
+
+    public function test_creator_or_admin_can_delete_group_chat(): void
+    {
+        $group = Conversation::create([
+            'type' => Conversation::TYPE_GROUP,
+            'name' => 'Temp Group',
+            'created_by' => $this->creator->id,
+        ]);
+        $group->users()->attach([
+            $this->creator->id => ['role' => 'manager'],
+            $this->user1->id => ['role' => 'member'],
+        ]);
+
+        // Regular member cannot delete
+        $this->actingAs($this->user1)->deleteJson(route('chat.destroy', $group))
+            ->assertStatus(403);
+
+        // Creator deletes
+        $this->actingAs($this->creator)->deleteJson(route('chat.destroy', $group))
+            ->assertOk();
+
+        $this->assertDatabaseMissing('conversations', [
+            'id' => $group->id,
+        ]);
+    }
 }

@@ -253,6 +253,21 @@ export default function ChatIndex({
     onNewMessage: handleNewMessage,
   });
 
+  const handleConversationUpdated = useCallback((updatedConv) => {
+    setConversations((prev) =>
+      prev.map((c) =>
+        Number(c.id) === Number(updatedConv.id) ? { ...c, ...updatedConv } : c,
+      ),
+    );
+  }, []);
+
+  const handleConversationDeleted = useCallback((convId) => {
+    setConversations((prev) =>
+      prev.filter((c) => Number(c.id) !== Number(convId)),
+    );
+    setActiveConversationId(null);
+  }, []);
+
   // Send message with Optimistic UI update
   const handleSendMessage = async (body) => {
     if (!activeConversationId) return;
@@ -367,6 +382,7 @@ export default function ChatIndex({
                 messages={messages}
                 currentUserId={auth.user.id}
                 currentUserName={auth.user.name}
+                colleagues={colleagues}
                 onSendMessage={handleSendMessage}
                 onLoadMore={handleLoadMore}
                 hasMore={Boolean(nextCursor)}
@@ -376,6 +392,8 @@ export default function ChatIndex({
                 typingUser={typingUser}
                 onTyping={sendTyping}
                 onBack={() => handleSelectConversation(null)}
+                onConversationUpdated={handleConversationUpdated}
+                onConversationDeleted={handleConversationDeleted}
               />
             </div>
           </div>
