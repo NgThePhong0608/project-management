@@ -100,11 +100,11 @@ class ChatController extends Controller
         ]);
 
         $attachData = [
-            $user->id => ['unread_count' => 0, 'last_read_at' => now()],
+            $user->id => ['unread_count' => 0, 'last_read_at' => now(), 'role' => 'manager'],
         ];
 
         foreach ($memberIds as $memberId) {
-            $attachData[$memberId] = ['unread_count' => 0, 'last_read_at' => null];
+            $attachData[$memberId] = ['unread_count' => 0, 'last_read_at' => null, 'role' => 'member'];
         }
 
         $conversation->users()->attach($attachData);
@@ -122,6 +122,11 @@ class ChatController extends Controller
         $user = $request->user();
         abort_unless($conversation->isParticipant($user->id), 403, 'Unauthorized conversation access.');
         abort_unless($conversation->isGroup(), 400, 'Cannot add members to a direct conversation.');
+        abort_unless($conversation->canManage($user), 403, 'Only group managers or admins can add members.');
+
+        if ($conversation->is_terminated && ! $conversation->canManage($user)) {
+            abort(403, 'Cannot add members to a terminated group.');
+        }
 
         $validated = $request->validate([
             'user_id' => ['required', 'integer', 'exists:users,id'],
@@ -133,12 +138,14 @@ class ChatController extends Controller
             $conversation->users()->attach($newUserId, [
                 'unread_count' => 0,
                 'last_read_at' => null,
+                'role' => 'member',
             ]);
         }
 
         return response()->json([
             'success' => true,
             'message' => 'Member added successfully.',
+            'conversation' => $this->formatConversationSummary($conversation->fresh(), $user),
         ]);
     }
 
@@ -152,8 +159,11 @@ class ChatController extends Controller
         abort_unless($conversation->isGroup(), 400, 'Cannot remove members from a direct conversation.');
         abort_unless($conversation->isParticipant($user->id), 404, 'User is not a member of this conversation.');
 
-        if ($currentUser->id !== $user->id && $conversation->created_by && $conversation->created_by !== $currentUser->id) {
-            abort(403, 'Only the group creator can remove other members.');
+        if ($currentUser->id !== $user->id) {
+            abort_unless($conversation->canManage($currentUser), 403, 'Only group managers or admins can remove other members.');
+            if ((int) $conversation->created_by === (int) $user->id && $currentUser->role !== 'admin') {
+                abort(403, 'Cannot remove the group creator.');
+            }
         }
 
         $conversation->users()->detach($user->id);
@@ -163,6 +173,80 @@ class ChatController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Member removed successfully.',
+            'conversation' => $this->formatConversationSummary($conversation->fresh(), $currentUser),
+        ]);
+    }
+
+    /**
+     * Update a member's role within a group conversation.
+     */
+    public function updateMemberRole(Request $request, Conversation $conversation, User $user): JsonResponse
+    {
+        $currentUser = $request->user();
+        abort_unless($conversation->isParticipant($currentUser->id), 403, 'Unauthorized conversation access.');
+        abort_unless($conversation->isGroup(), 400, 'Cannot manage roles on a direct conversation.');
+        abort_unless($conversation->canManage($currentUser), 403, 'Only group managers or admins can update member roles.');
+        abort_unless($conversation->isParticipant($user->id), 404, 'User is not a member of this conversation.');
+
+        if ((int) $conversation->created_by === (int) $user->id && $currentUser->role !== 'admin') {
+            abort(403, 'Cannot modify the group creator role.');
+        }
+
+        $validated = $request->validate([
+            'role' => ['required', 'string', 'in:member,manager'],
+        ]);
+
+        $conversation->users()->updateExistingPivot($user->id, [
+            'role' => $validated['role'],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Member role updated successfully.',
+            'conversation' => $this->formatConversationSummary($conversation->fresh(), $currentUser),
+        ]);
+    }
+
+    /**
+     * Toggle group conversation termination status (locked/unlocked).
+     */
+    public function toggleTerminate(Request $request, Conversation $conversation): JsonResponse
+    {
+        $currentUser = $request->user();
+        abort_unless($conversation->isParticipant($currentUser->id), 403, 'Unauthorized conversation access.');
+        abort_unless($conversation->isGroup(), 400, 'Cannot terminate a direct conversation.');
+        abort_unless($conversation->canManage($currentUser), 403, 'Only group managers or admins can terminate or resume a group.');
+
+        $conversation->update([
+            'is_terminated' => ! $conversation->is_terminated,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'is_terminated' => (bool) $conversation->is_terminated,
+            'message' => $conversation->is_terminated ? 'Group chat has been terminated.' : 'Group chat has been resumed.',
+            'conversation' => $this->formatConversationSummary($conversation->fresh(), $currentUser),
+        ]);
+    }
+
+    /**
+     * Delete an entire group conversation.
+     */
+    public function destroy(Request $request, Conversation $conversation): JsonResponse
+    {
+        $currentUser = $request->user();
+        abort_unless($conversation->isParticipant($currentUser->id), 403, 'Unauthorized conversation access.');
+        abort_unless($conversation->isGroup(), 400, 'Cannot delete a direct conversation.');
+
+        if ((int) $conversation->created_by !== (int) $currentUser->id && $currentUser->role !== 'admin') {
+            abort(403, 'Only the group creator or system admin can delete this group.');
+        }
+
+        $conversation->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Group conversation deleted successfully.',
         ]);
     }
 
@@ -206,6 +290,10 @@ class ChatController extends Controller
     {
         $user = $request->user();
         abort_unless($conversation->isParticipant($user->id), 403, 'Unauthorized conversation access.');
+
+        if ($conversation->is_terminated && ! $conversation->canManage($user)) {
+            abort(403, 'This group conversation has been terminated. Only managers or admins can post messages.');
+        }
 
         $validated = $request->validate([
             'body' => ['required_without:message', 'nullable', 'string', 'max:2000'],
@@ -290,12 +378,16 @@ class ChatController extends Controller
         $lastReadAt = $pivot?->last_read_at ? Carbon::parse($pivot->last_read_at) : null;
         $lastMessageAt = $conversation->last_message_at ? Carbon::parse($conversation->last_message_at) : null;
         $unreadCount = (int) ($pivot?->unread_count ?? 0);
+        $canManage = $conversation->canManage($user);
 
         return [
             'id' => $conversation->id,
             'type' => $conversation->type,
             'name' => $conversation->name,
             'created_by' => $conversation->created_by,
+            'is_terminated' => (bool) $conversation->is_terminated,
+            'can_manage' => $canManage,
+            'is_creator' => (int) $conversation->created_by === (int) $user->id,
             'last_message_at' => $lastMessageAt?->toISOString(),
             'last_read_at' => $lastReadAt?->toISOString(),
             'unread_count' => $unreadCount,
@@ -306,12 +398,22 @@ class ChatController extends Controller
                 'email' => $partner->email,
                 'avatar_url' => $partner->avatar_url,
             ] : null,
-            'users' => $conversation->users->map(fn (User $u) => [
-                'id' => $u->id,
-                'name' => $u->name,
-                'email' => $u->email,
-                'avatar_url' => $u->avatar_url,
-            ])->values()->all(),
+            'users' => $conversation->users->map(function (User $u) use ($conversation) {
+                $role = ((int) $conversation->created_by === (int) $u->id)
+                    ? 'creator'
+                    : ($u->pivot?->role ?? 'member');
+
+                $joinedAt = $u->pivot?->created_at ? Carbon::parse($u->pivot->created_at)->toISOString() : null;
+
+                return [
+                    'id' => $u->id,
+                    'name' => $u->name,
+                    'email' => $u->email,
+                    'avatar_url' => $u->avatar_url,
+                    'role' => $role,
+                    'joined_at' => $joinedAt,
+                ];
+            })->values()->all(),
         ];
     }
 }
