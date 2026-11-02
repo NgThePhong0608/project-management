@@ -39,30 +39,30 @@ export default function ChatIndex({
   );
 
   // Handler for selecting an active conversation
-  const handleSelectConversation = useCallback((id) => {
-    if (!id) {
-      setActiveConversationId(null);
+  const handleSelectConversation = useCallback(
+    (id) => {
+      if (!id) {
+        setActiveConversationId(null);
+        window.dispatchEvent(
+          new CustomEvent("chat:conversation-selected", {
+            detail: { conversationId: null },
+          }),
+        );
+        return;
+      }
+
+      const convId = Number(id);
+      setActiveConversationId(convId);
+
+      // Emit event so AuthenticatedLayout knows which conversation is active
       window.dispatchEvent(
         new CustomEvent("chat:conversation-selected", {
-          detail: { conversationId: null },
+          detail: { conversationId: convId },
         }),
       );
-      return;
-    }
 
-    const convId = Number(id);
-    setActiveConversationId(convId);
-
-    // Emit event so AuthenticatedLayout knows which conversation is active
-    window.dispatchEvent(
-      new CustomEvent("chat:conversation-selected", {
-        detail: { conversationId: convId },
-      }),
-    );
-
-    // Reset local unread_count and emit decrement to update global unread badge
-    setConversations((prev) => {
-      const target = prev.find((c) => Number(c.id) === convId);
+      // Reset local unread_count and emit decrement to update global unread badge
+      const target = conversations.find((c) => Number(c.id) === convId);
       const unreadCount =
         Number(target?.unread_count) || (target?.is_unread ? 1 : 0);
 
@@ -74,13 +74,16 @@ export default function ChatIndex({
         );
       }
 
-      return prev.map((c) =>
-        Number(c.id) === convId
-          ? { ...c, unread_count: 0, is_unread: false }
-          : c,
+      setConversations((prev) =>
+        prev.map((c) =>
+          Number(c.id) === convId
+            ? { ...c, unread_count: 0, is_unread: false }
+            : c,
+        ),
       );
-    });
-  }, []);
+    },
+    [conversations],
+  );
 
   // Support URL query param deep linking on mount
   useEffect(() => {

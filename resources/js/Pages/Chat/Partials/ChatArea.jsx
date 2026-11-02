@@ -18,6 +18,7 @@ export default function ChatArea({
   onLoadMore,
   hasMore,
   loadingMore,
+  loadingMessages = false,
   isTyping,
   typingUser,
   onTyping,
@@ -193,7 +194,14 @@ export default function ChatArea({
           </div>
         )}
 
-        {messages.length === 0 ? (
+        {loadingMessages ? (
+          <div className="h-full flex flex-col items-center justify-center text-center p-8 text-gray-400 dark:text-gray-500">
+            <ArrowPathIcon className="w-6 h-6 animate-spin text-indigo-600 dark:text-indigo-400 mb-2" />
+            <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
+              Loading messages...
+            </p>
+          </div>
+        ) : messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center p-8 text-gray-400 dark:text-gray-500">
             <p className="text-sm">No messages yet.</p>
             <p className="text-xs mt-1">Say hello to start the conversation!</p>

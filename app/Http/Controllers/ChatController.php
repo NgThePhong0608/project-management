@@ -78,17 +78,25 @@ class ChatController extends Controller
 
         $user = $request->user();
 
+        $memberIds = collect($validated['user_ids'])
+            ->reject(fn ($id) => (int) $id === $user->id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($memberIds)) {
+            return response()->json([
+                'message' => 'Please select at least one colleague to create a group.',
+                'errors' => ['user_ids' => ['Please select at least one colleague to create a group.']],
+            ], 422);
+        }
+
         $conversation = Conversation::create([
             'type' => Conversation::TYPE_GROUP,
             'name' => $validated['name'],
             'created_by' => $user->id,
             'last_message_at' => now(),
         ]);
-
-        $memberIds = collect($validated['user_ids'])
-            ->reject(fn ($id) => (int) $id === $user->id)
-            ->unique()
-            ->values();
 
         $attachData = [
             $user->id => ['unread_count' => 0, 'last_read_at' => now()],

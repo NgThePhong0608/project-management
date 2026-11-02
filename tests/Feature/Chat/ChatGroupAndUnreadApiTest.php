@@ -62,6 +62,21 @@ class ChatGroupAndUnreadApiTest extends TestCase
             ->assertJsonValidationErrors(['name', 'user_ids']);
     }
 
+    public function test_cannot_create_group_with_only_self_in_user_ids(): void
+    {
+        $response = $this->actingAs($this->creator)->postJson(route('chat.createGroup'), [
+            'name' => 'Solo Group',
+            'user_ids' => [$this->creator->id],
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['user_ids']);
+
+        $this->assertDatabaseMissing('conversations', [
+            'name' => 'Solo Group',
+        ]);
+    }
+
     public function test_sending_message_increments_unread_count_for_others(): void
     {
         Event::fake();

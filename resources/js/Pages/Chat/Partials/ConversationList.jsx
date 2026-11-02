@@ -144,9 +144,6 @@ export default function ConversationList({
     if (onGroupCreated) {
       onGroupCreated(newConv);
     }
-    if (onSelectConversation) {
-      onSelectConversation(newConv.id);
-    }
     setShowGroupModal(false);
   };
 
