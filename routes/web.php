@@ -61,6 +61,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::prefix('chat')->name('chat.')->group(function () {
         Route::get('/', [ChatController::class, 'index'])->name('index');
+        Route::get('/unread-count', [ChatController::class, 'unreadCount'])->name('unreadCount');
+        Route::post('/group', [ChatController::class, 'createGroup'])->name('createGroup');
+        Route::post('/{conversation}/members', [ChatController::class, 'addMember'])->name('addMember');
+        Route::delete('/{conversation}/members/{user}', [ChatController::class, 'removeMember'])->name('removeMember');
         Route::post('/start/{user}', [ChatController::class, 'startDirect'])->name('startDirect');
         Route::get('/{conversation}/messages', [ChatController::class, 'messages'])->name('messages');
         Route::post('/{conversation}/messages', [ChatController::class, 'sendMessage'])->name('sendMessage');
