@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ChatController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\NotificationController;
@@ -56,6 +57,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('notifications.show');
         Route::post('{id}/read', [NotificationController::class, 'markAsRead'])
             ->name('notifications.read');
+    });
+
+    Route::prefix('chat')->name('chat.')->group(function () {
+        Route::get('/', [ChatController::class, 'index'])->name('index');
+        Route::get('/unread-count', [ChatController::class, 'unreadCount'])->name('unreadCount');
+        Route::post('/group', [ChatController::class, 'createGroup'])->name('createGroup');
+        Route::post('/{conversation}/members', [ChatController::class, 'addMember'])->name('addMember');
+        Route::delete('/{conversation}/members/{user}', [ChatController::class, 'removeMember'])->name('removeMember');
+        Route::post('/start/{user}', [ChatController::class, 'startDirect'])->name('startDirect');
+        Route::get('/{conversation}/messages', [ChatController::class, 'messages'])->name('messages');
+        Route::post('/{conversation}/messages', [ChatController::class, 'sendMessage'])->name('sendMessage');
+        Route::post('/{conversation}/read', [ChatController::class, 'markAsRead'])->name('markAsRead');
     });
 });
 

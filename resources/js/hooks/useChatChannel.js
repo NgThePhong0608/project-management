@@ -1,0 +1,95 @@
+import { useEffect, useRef, useState, useCallback } from "react";
+
+export function useChatChannel({
+    conversationId,
+    currentUserId,
+    onNewMessage,
+}) {
+    const [isTyping, setIsTyping] = useState(false);
+    const [typingUser, setTypingUser] = useState(null);
+    const typingTimerRef = useRef(null);
+    const channelRef = useRef(null);
+    const lastWhisperTimeRef = useRef(0);
+
+    useEffect(() => {
+        if (!conversationId || typeof window === "undefined" || !window.Echo) {
+            return;
+        }
+
+        const channelName = `chat.${conversationId}`;
+        const channel = window.Echo.private(channelName);
+        channelRef.current = channel;
+
+        // 1. Listen for member removal on the conversation channel to revoke subscription immediately
+        channel.listen(".chat.member.removed", (event) => {
+            if (event && Number(event.user_id) === Number(currentUserId)) {
+                window.Echo.leave(channelName);
+                channelRef.current = null;
+                window.dispatchEvent(
+                    new CustomEvent("chat:member-removed", { detail: event }),
+                );
+            }
+        });
+
+        // 2. Listen for client whisper typing events
+        channel.listenForWhisper("typing", (event) => {
+            if (event && event.userId !== currentUserId) {
+                setIsTyping(true);
+                setTypingUser(event.userName || "Someone");
+
+                if (typingTimerRef.current) {
+                    clearTimeout(typingTimerRef.current);
+                }
+                typingTimerRef.current = setTimeout(() => {
+                    setIsTyping(false);
+                    setTypingUser(null);
+                }, 2500);
+            }
+        });
+
+        return () => {
+            if (typingTimerRef.current) {
+                clearTimeout(typingTimerRef.current);
+            }
+            setIsTyping(false);
+            setTypingUser(null);
+            window.Echo.leave(channelName);
+            channelRef.current = null;
+        };
+    }, [conversationId, currentUserId]);
+
+    // 3. Listen for incoming messages delivered strictly via current participant user channels
+    useEffect(() => {
+        const handleIncoming = (e) => {
+            const msg = e.detail?.message;
+            if (msg && Number(msg.conversation_id) === Number(conversationId)) {
+                onNewMessage?.(msg);
+            }
+        };
+
+        window.addEventListener("chat:message-received", handleIncoming);
+        return () => {
+            window.removeEventListener("chat:message-received", handleIncoming);
+        };
+    }, [conversationId, onNewMessage]);
+
+    const sendTyping = useCallback(
+        (userName) => {
+            const now = Date.now();
+            if (channelRef.current && now - lastWhisperTimeRef.current > 1500) {
+                lastWhisperTimeRef.current = now;
+                channelRef.current.whisper("typing", {
+                    userId: currentUserId,
+                    userName: userName || "Someone",
+                });
+            }
+        },
+        [currentUserId],
+    );
+
+    return {
+        isTyping,
+        typingUser,
+        sendTyping,
+    };
+}

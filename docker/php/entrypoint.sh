@@ -21,6 +21,7 @@ fi
 php artisan storage:link || true
 
 php artisan migrate --force
+php artisan dynamodb:migrate || true
 php artisan db:seed --force || true
 
 php artisan config:clear
