@@ -15,6 +15,10 @@ import {
   TrashIcon,
   ArrowRightOnRectangleIcon,
 } from "@heroicons/react/24/outline";
+import Modal from "@/Components/Modal";
+import DangerButton from "@/Components/DangerButton";
+import SecondaryButton from "@/Components/SecondaryButton";
+import PrimaryButton from "@/Components/PrimaryButton";
 import GroupMembersModal from "./GroupMembersModal";
 
 export default function ChatArea({
@@ -39,6 +43,11 @@ export default function ChatArea({
   const [showMembersModal, setShowMembersModal] = useState(false);
   const [showKebabMenu, setShowKebabMenu] = useState(false);
   const [loadingKebabAction, setLoadingKebabAction] = useState(false);
+
+  // Confirmation Modals State
+  const [showTerminateModal, setShowTerminateModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
 
   const messagesEndRef = useRef(null);
   const scrollContainerRef = useRef(null);
@@ -113,71 +122,47 @@ export default function ChatArea({
     }
   };
 
-  const handleToggleTerminate = async () => {
+  const handleConfirmTerminate = async () => {
     if (!conversation) return;
-    const isTerminated = Boolean(conversation.is_terminated);
-    const confirmText = isTerminated
-      ? "Bạn có muốn mở khóa lại nhóm chat này để mọi người tiếp tục nhắn tin?"
-      : "Bạn có chắc chắn muốn khóa (terminate) nhóm chat này? Sau khi khóa, chỉ Quản trị viên mới có quyền nhắn tin.";
-
-    if (!window.confirm(confirmText)) return;
-
     setLoadingKebabAction(true);
     try {
       const response = await axios.post(`/chat/${conversation.id}/terminate`);
       if (response.data.conversation) {
         onConversationUpdated?.(response.data.conversation);
       }
-      setShowKebabMenu(false);
+      setShowTerminateModal(false);
     } catch (err) {
       alert(
-        err.response?.data?.message ||
-          "Không thể thay đổi trạng thái nhóm chat.",
+        err.response?.data?.message || "Failed to update group chat status.",
       );
     } finally {
       setLoadingKebabAction(false);
     }
   };
 
-  const handleDeleteGroup = async () => {
+  const handleConfirmDeleteGroup = async () => {
     if (!conversation) return;
-    if (
-      !window.confirm(
-        `Bạn có chắc chắn muốn xóa vĩnh viễn nhóm "${conversation.name}"? Hành động này không thể hoàn tác.`,
-      )
-    ) {
-      return;
-    }
-
     setLoadingKebabAction(true);
     try {
       await axios.delete(`/chat/${conversation.id}`);
-      setShowKebabMenu(false);
+      setShowDeleteModal(false);
       onConversationDeleted?.(conversation.id);
     } catch (err) {
-      alert(err.response?.data?.message || "Không thể xóa nhóm chat.");
+      alert(err.response?.data?.message || "Failed to delete group chat.");
     } finally {
       setLoadingKebabAction(false);
     }
   };
 
-  const handleLeaveGroup = async () => {
+  const handleConfirmLeaveGroup = async () => {
     if (!conversation) return;
-    if (
-      !window.confirm(
-        `Bạn có chắc chắn muốn rời khỏi nhóm "${conversation.name}"?`,
-      )
-    ) {
-      return;
-    }
-
     setLoadingKebabAction(true);
     try {
       await axios.delete(`/chat/${conversation.id}/members/${currentUserId}`);
-      setShowKebabMenu(false);
+      setShowLeaveModal(false);
       onConversationDeleted?.(conversation.id);
     } catch (err) {
-      alert(err.response?.data?.message || "Không thể rời nhóm chat.");
+      alert(err.response?.data?.message || "Failed to leave group chat.");
     } finally {
       setLoadingKebabAction(false);
     }
@@ -196,11 +181,11 @@ export default function ChatArea({
           <ChatBubbleLeftRightIcon className="w-8 h-8" />
         </div>
         <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">
-          Chưa chọn cuộc trò chuyện
+          No conversation selected
         </h3>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 max-w-sm">
-          Hãy chọn một cuộc hội thoại từ danh sách bên trái hoặc tạo tin nhắn
-          trực tiếp với đồng nghiệp.
+          Choose a conversation from the sidebar or start a new direct chat with
+          a colleague.
         </p>
       </div>
     );
@@ -209,8 +194,8 @@ export default function ChatArea({
   const isGroup = conversation.type === "group";
   const partner = conversation.partner;
   const partnerName = isGroup
-    ? conversation.name || "Nhóm Chat"
-    : conversation.name || partner?.name || "Tin nhắn trực tiếp";
+    ? conversation.name || "Group Chat"
+    : conversation.name || partner?.name || "Direct Message";
   const partnerAvatar = partner?.avatar_url;
 
   const memberCount = conversation.users?.length || 0;
@@ -274,7 +259,7 @@ export default function ChatArea({
               {isGroup && isTerminated && (
                 <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
                   <LockClosedIcon className="w-2.5 h-2.5" />
-                  Đã khóa
+                  Terminated
                 </span>
               )}
             </div>
@@ -282,7 +267,7 @@ export default function ChatArea({
             <div className="h-4 flex items-center">
               {isTyping ? (
                 <span className="text-xs text-indigo-600 dark:text-indigo-400 font-medium flex items-center gap-1 animate-pulse truncate">
-                  <span>{typingUser || "Có người"} đang nhập</span>
+                  <span>{typingUser || "Someone"} is typing</span>
                   <span className="inline-flex gap-0.5">
                     <span className="w-1 h-1 bg-indigo-600 rounded-full animate-bounce" />
                     <span className="w-1 h-1 bg-indigo-600 rounded-full animate-bounce [animation-delay:0.2s]" />
@@ -295,11 +280,11 @@ export default function ChatArea({
                   onClick={() => setShowMembersModal(true)}
                   className="text-xs text-gray-500 dark:text-gray-400 truncate hover:text-indigo-600 dark:hover:text-indigo-400 text-left transition"
                 >
-                  {memberCount} thành viên
+                  {memberCount} {memberCount === 1 ? "member" : "members"}
                 </button>
               ) : (
                 <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                  {partner?.email || "Cuộc trò chuyện"}
+                  {partner?.email || "Active conversation"}
                 </span>
               )}
             </div>
@@ -313,7 +298,7 @@ export default function ChatArea({
               type="button"
               onClick={() => setShowKebabMenu((prev) => !prev)}
               className="p-1.5 rounded-lg text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
-              title="Tùy chọn nhóm"
+              title="Group options"
             >
               <EllipsisVerticalIcon className="w-5 h-5" />
             </button>
@@ -329,7 +314,7 @@ export default function ChatArea({
                   className="w-full text-left px-3.5 py-2 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2.5 transition"
                 >
                   <UserGroupIcon className="w-4 h-4 text-gray-400" />
-                  <span>Danh sách thành viên ({memberCount})</span>
+                  <span>View members ({memberCount})</span>
                 </button>
 
                 {canManage && (
@@ -343,24 +328,26 @@ export default function ChatArea({
                       className="w-full text-left px-3.5 py-2 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2.5 transition"
                     >
                       <UserPlusIcon className="w-4 h-4 text-gray-400" />
-                      <span>Thêm thành viên mới</span>
+                      <span>Add member</span>
                     </button>
 
                     <button
                       type="button"
-                      onClick={handleToggleTerminate}
-                      disabled={loadingKebabAction}
+                      onClick={() => {
+                        setShowKebabMenu(false);
+                        setShowTerminateModal(true);
+                      }}
                       className="w-full text-left px-3.5 py-2 text-xs text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 flex items-center gap-2.5 transition"
                     >
                       {isTerminated ? (
                         <>
                           <LockOpenIcon className="w-4 h-4 text-amber-500" />
-                          <span>Mở khóa nhóm chat</span>
+                          <span>Resume group chat</span>
                         </>
                       ) : (
                         <>
                           <LockClosedIcon className="w-4 h-4 text-amber-500" />
-                          <span>Khóa nhóm (Terminate)</span>
+                          <span>Terminate group chat</span>
                         </>
                       )}
                     </button>
@@ -372,24 +359,28 @@ export default function ChatArea({
                 {isCreator || canManage ? (
                   <button
                     type="button"
-                    onClick={handleDeleteGroup}
-                    disabled={loadingKebabAction}
+                    onClick={() => {
+                      setShowKebabMenu(false);
+                      setShowDeleteModal(true);
+                    }}
                     className="w-full text-left px-3.5 py-2 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center gap-2.5 transition"
                   >
                     <TrashIcon className="w-4 h-4 text-red-500" />
-                    <span>Xóa nhóm chat</span>
+                    <span>Delete group chat</span>
                   </button>
                 ) : null}
 
                 {!isCreator && (
                   <button
                     type="button"
-                    onClick={handleLeaveGroup}
-                    disabled={loadingKebabAction}
+                    onClick={() => {
+                      setShowKebabMenu(false);
+                      setShowLeaveModal(true);
+                    }}
                     className="w-full text-left px-3.5 py-2 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center gap-2.5 transition"
                   >
                     <ArrowRightOnRectangleIcon className="w-4 h-4 text-red-500" />
-                    <span>Rời khỏi nhóm</span>
+                    <span>Leave group</span>
                   </button>
                 )}
               </div>
@@ -403,11 +394,13 @@ export default function ChatArea({
         <div className="px-4 py-2 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-800/60 flex items-center justify-between text-xs text-amber-800 dark:text-amber-300">
           <div className="flex items-center gap-1.5 font-medium">
             <LockClosedIcon className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-            <span>Nhóm này đã bị tạm dừng nhắn tin bởi Quản trị viên.</span>
+            <span>
+              This group chat has been terminated by an administrator.
+            </span>
           </div>
           {canManage && (
             <span className="text-[11px] text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/50 px-2 py-0.5 rounded font-semibold flex-shrink-0">
-              Bạn có quyền Quản trị viên
+              You have manager privileges
             </span>
           )}
         </div>
@@ -430,10 +423,10 @@ export default function ChatArea({
               {loadingMore ? (
                 <>
                   <ArrowPathIcon className="w-3.5 h-3.5 animate-spin" />
-                  <span>Đang tải thêm...</span>
+                  <span>Loading more...</span>
                 </>
               ) : (
-                <span>Tải tin nhắn cũ hơn</span>
+                <span>Load older messages</span>
               )}
             </button>
           </div>
@@ -442,11 +435,11 @@ export default function ChatArea({
         {loadingMessages ? (
           <div className="flex items-center justify-center py-12 text-sm text-gray-400">
             <ArrowPathIcon className="w-5 h-5 animate-spin mr-2 text-indigo-500" />
-            Đang tải tin nhắn...
+            Loading messages...
           </div>
         ) : messages.length === 0 ? (
           <div className="text-center py-12 text-sm text-gray-400 dark:text-gray-500">
-            Chưa có tin nhắn nào. Hãy gửi lời chào đầu tiên!
+            No messages yet. Say hello to get started!
           </div>
         ) : (
           messages.map((msg, index) => {
@@ -500,7 +493,7 @@ export default function ChatArea({
                     >
                       <span>{formatMessageTime(msg.created_at)}</span>
                       {isMine && (
-                        <span>{isOptimistic ? "• đang gửi..." : "✓"}</span>
+                        <span>{isOptimistic ? "• sending..." : "✓"}</span>
                       )}
                     </div>
                   </div>
@@ -534,10 +527,10 @@ export default function ChatArea({
             onKeyDown={handleKeyDown}
             placeholder={
               !canSendInGroup
-                ? "Nhóm chat đã bị khóa nhắn tin bởi Quản trị viên."
+                ? "This group chat has been terminated by an administrator."
                 : isTerminated && canManage
-                  ? "Nhóm đang khóa với thành viên (bạn có quyền Quản trị viên)..."
-                  : "Nhập tin nhắn... (Enter để gửi, Shift+Enter xuống dòng)"
+                  ? "Group is locked for regular members (you have manager privileges)..."
+                  : "Type a message... (Enter to send, Shift+Enter for new line)"
             }
             className="flex-1 bg-transparent border-none focus:ring-0 text-sm text-gray-900 dark:text-gray-100 resize-none max-h-28 py-1.5 px-2 focus:outline-none placeholder-gray-400 disabled:cursor-not-allowed"
           />
@@ -546,7 +539,7 @@ export default function ChatArea({
             type="submit"
             disabled={!inputBody.trim() || !canSendInGroup}
             className="p-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-40 disabled:hover:bg-indigo-600 transition flex-shrink-0"
-            title="Gửi tin nhắn"
+            title="Send Message"
           >
             <PaperAirplaneIcon className="w-5 h-5 -rotate-45" />
           </button>
@@ -564,6 +557,114 @@ export default function ChatArea({
           onConversationUpdated={onConversationUpdated}
         />
       )}
+
+      {/* Confirmation Modal: Terminate / Resume Group */}
+      <Modal
+        show={showTerminateModal}
+        onClose={() => setShowTerminateModal(false)}
+        maxWidth="md"
+      >
+        <div className="p-6">
+          <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">
+            {isTerminated
+              ? "Resume Group Messaging"
+              : "Terminate Group Messaging"}
+          </h2>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+            {isTerminated
+              ? "Are you sure you want to resume messaging for this group chat? All participants will be able to post messages again."
+              : "Are you sure you want to terminate messaging for this group chat? Regular members will no longer be able to send messages until the group is resumed. Only managers and administrators will retain posting privileges."}
+          </p>
+          <div className="mt-6 flex justify-end gap-3">
+            <SecondaryButton
+              onClick={() => setShowTerminateModal(false)}
+              disabled={loadingKebabAction}
+            >
+              Cancel
+            </SecondaryButton>
+            <PrimaryButton
+              onClick={handleConfirmTerminate}
+              disabled={loadingKebabAction}
+            >
+              {loadingKebabAction
+                ? "Updating..."
+                : isTerminated
+                  ? "Resume Group"
+                  : "Terminate Group"}
+            </PrimaryButton>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Confirmation Modal: Delete Group */}
+      <Modal
+        show={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        maxWidth="md"
+      >
+        <div className="p-6">
+          <h2 className="text-lg font-medium text-red-600 dark:text-red-400">
+            Delete Group Chat
+          </h2>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+            Are you sure you want to permanently delete{" "}
+            <strong className="text-gray-900 dark:text-gray-100">
+              {conversation?.name}
+            </strong>
+            ? All messages, attachments, and membership data will be permanently
+            deleted. This action cannot be undone.
+          </p>
+          <div className="mt-6 flex justify-end gap-3">
+            <SecondaryButton
+              onClick={() => setShowDeleteModal(false)}
+              disabled={loadingKebabAction}
+            >
+              Cancel
+            </SecondaryButton>
+            <DangerButton
+              onClick={handleConfirmDeleteGroup}
+              disabled={loadingKebabAction}
+            >
+              {loadingKebabAction ? "Deleting..." : "Delete Group"}
+            </DangerButton>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Confirmation Modal: Leave Group */}
+      <Modal
+        show={showLeaveModal}
+        onClose={() => setShowLeaveModal(false)}
+        maxWidth="md"
+      >
+        <div className="p-6">
+          <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">
+            Leave Group Chat
+          </h2>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+            Are you sure you want to leave{" "}
+            <strong className="text-gray-900 dark:text-gray-100">
+              {conversation?.name}
+            </strong>
+            ? You will no longer receive new messages or activity updates from
+            this group.
+          </p>
+          <div className="mt-6 flex justify-end gap-3">
+            <SecondaryButton
+              onClick={() => setShowLeaveModal(false)}
+              disabled={loadingKebabAction}
+            >
+              Cancel
+            </SecondaryButton>
+            <DangerButton
+              onClick={handleConfirmLeaveGroup}
+              disabled={loadingKebabAction}
+            >
+              {loadingKebabAction ? "Leaving..." : "Leave Group"}
+            </DangerButton>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
