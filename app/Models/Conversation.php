@@ -5,15 +5,21 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Conversation extends Model
 {
     use HasFactory;
 
+    public const TYPE_DIRECT = 'direct';
+
+    public const TYPE_GROUP = 'group';
+
     protected $fillable = [
         'type',
         'name',
+        'created_by',
         'last_message_at',
     ];
 
@@ -23,9 +29,37 @@ class Conversation extends Model
 
     public function users(): BelongsToMany
     {
-        return $this->belongsToMany(User::class)
-            ->withPivot('last_read_at')
+        return $this->belongsToMany(User::class, 'conversation_user')
+            ->withPivot(['last_read_at', 'unread_count'])
             ->withTimestamps();
+    }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function isGroup(): bool
+    {
+        return $this->type === self::TYPE_GROUP;
+    }
+
+    public function isDirect(): bool
+    {
+        return $this->type === self::TYPE_DIRECT;
+    }
+
+    public function getMemberCount(): int
+    {
+        return $this->users()->count();
+    }
+
+    public function markAsReadForUser(int $userId): void
+    {
+        $this->users()->updateExistingPivot($userId, [
+            'last_read_at' => now(),
+            'unread_count' => 0,
+        ]);
     }
 
     /**
@@ -49,9 +83,7 @@ class Conversation extends Model
      */
     public function markAsRead(int $userId): void
     {
-        $this->users()->updateExistingPivot($userId, [
-            'last_read_at' => now(),
-        ]);
+        $this->markAsReadForUser($userId);
     }
 
     /**
