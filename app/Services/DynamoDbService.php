@@ -30,18 +30,21 @@ class DynamoDbService
 
         // Fallback to dummy credentials whenever local endpoint or mode=local has empty keys
         $isLocal = config('services.aws.mode', 'local') === 'local' || ! empty($endpoint);
-        if ($isLocal && (empty($key) || empty($secret))) {
-            $key = $key ?: 'dummyLocalKey';
-            $secret = $secret ?: 'dummyLocalSecret';
-        }
 
         $config = [
             'region' => $region,
             'version' => 'latest',
-            'credentials' => new Credentials($key, $secret),
         ];
 
-        if ($endpoint) {
+        if (! empty($key) && ! empty($secret)) {
+            $config['credentials'] = new Credentials($key, $secret);
+        } elseif ($isLocal) {
+            $config['credentials'] = new Credentials('dummyLocalKey', 'dummyLocalSecret');
+        }
+        // In live mode without explicit static keys, credentials are automatically resolved
+        // by the AWS SDK default provider chain (ECS Task Role / IMDS / instance profile).
+
+        if (! empty($endpoint)) {
             $config['endpoint'] = $endpoint;
         }
 
