@@ -68,4 +68,3 @@ export default function SocialLoginButtons({ label = "Or continue with" }) {
     </div>
   );
 }
-

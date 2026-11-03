@@ -45,7 +45,7 @@ export default function Login({ status, statusType, canResetPassword }) {
             statusType === "error"
               ? "error-oauth bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800"
               : status.toLowerCase().includes("expired") ||
-                status.toLowerCase().includes("inactivity")
+                  status.toLowerCase().includes("inactivity")
                 ? "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800"
                 : "bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800"
           }`}
@@ -108,7 +108,10 @@ export default function Login({ status, statusType, canResetPassword }) {
         <InputError message={errors.cf_turnstile_response} className="mt-2" />
 
         <div className="mt-5 flex justify-center">
-          <PrimaryButton className="min-w-[120px] justify-center" disabled={processing}>
+          <PrimaryButton
+            className="min-w-[120px] justify-center"
+            disabled={processing}
+          >
             Log in
           </PrimaryButton>
         </div>

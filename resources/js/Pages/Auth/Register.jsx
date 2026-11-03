@@ -118,7 +118,10 @@ export default function Register() {
         <InputError message={errors.cf_turnstile_response} className="mt-2" />
 
         <div className="mt-5 flex justify-center">
-          <PrimaryButton className="min-w-[120px] justify-center" disabled={processing}>
+          <PrimaryButton
+            className="min-w-[120px] justify-center"
+            disabled={processing}
+          >
             Register
           </PrimaryButton>
         </div>
