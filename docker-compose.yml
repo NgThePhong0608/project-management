@@ -2,7 +2,7 @@ services:
   app:
     build:
       context: .
-      dockerfile: docker/php/Dockerfile
+      dockerfile: docker/php/Dockerfile.local
     restart: unless-stopped
     volumes:
       - .:/var/www
@@ -11,7 +11,7 @@ services:
   reverb:
     build:
       context: .
-      dockerfile: docker/php/Dockerfile
+      dockerfile: docker/php/Dockerfile.local
     restart: unless-stopped
     entrypoint: ["php", "artisan", "reverb:start", "--host=0.0.0.0", "--port=8080", "--debug"]
     ports:
@@ -66,7 +66,7 @@ services:
   worker:
     build:
       context: .
-      dockerfile: docker/php/Dockerfile
+      dockerfile: docker/php/Dockerfile.local
     restart: unless-stopped
     command: ["php", "artisan", "queue:work", "--sleep=3", "--tries=3"]
     volumes:

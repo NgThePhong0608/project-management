@@ -1,45 +1,46 @@
 FROM php:8.5.12-fpm-alpine
 
+# Install system dependencies & PHP extensions
 RUN apk add --no-cache libpng-dev libjpeg-turbo-dev freetype-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install pdo_mysql gd pcntl
 
+# Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 ENV COMPOSER_HOME=/tmp/composer
+ENV APP_ENV=production
 WORKDIR /var/www
 
-# Cấu hình entrypoint và logging pool
+# Configuration files
 COPY docker/php/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 COPY docker/php/logging.conf /usr/local/etc/php-fpm.d/zz-logging.conf
 COPY docker/php/uploads.ini /usr/local/etc/php/conf.d/uploads.ini
+COPY docker/php/opcache.ini /usr/local/etc/php/conf.d/opcache.ini
 
-# Copy toàn bộ mã nguồn ứng dụng
+# Optimized Docker Layer Caching:
+# 1. Copy dependency files first so composer install layer is cached unless lockfile changes
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist --no-interaction
+
+# 2. Copy application source code
 COPY . /var/www
 
-ARG APP_ENV=dev
-ENV APP_ENV=${APP_ENV}
+# 3. Generate optimized autoloader for production
+RUN composer dump-autoload --optimize --no-dev --no-interaction
 
-# Cài đặt composer dependencies (chỉ dùng --no-dev khi APP_ENV=production)
-RUN if [ -f "composer.json" ]; then \
-        if [ "$APP_ENV" = "production" ]; then \
-            composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader; \
-        else \
-            composer install --no-interaction --prefer-dist --optimize-autoloader; \
-        fi; \
-    fi
-
-# Khởi tạo thư mục và phân quyền cho storage/cache
+# 4. Prepare storage and bootstrap cache directories with correct permissions
 RUN mkdir -p /var/www/storage/framework/cache/data \
              /var/www/storage/framework/sessions \
              /var/www/storage/framework/views \
              /var/www/storage/logs \
              /var/www/bootstrap/cache \
     && chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache \
-    && chmod -R 777 /var/www/storage /var/www/bootstrap/cache
+    && chmod -R 775 /var/www/storage /var/www/bootstrap/cache
 
 EXPOSE 9000 8080
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+
