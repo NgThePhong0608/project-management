@@ -169,4 +169,16 @@ class UserController extends Controller
 
         return back()->with('success', "Role for \"{$user->name}\" was updated to {$data['role']}!");
     }
+
+    /**
+     * Unlock a locked user account (Admin only).
+     */
+    public function unlock(User $user)
+    {
+        $this->authorize('update', $user);
+
+        $user->unlock();
+
+        return back()->with('success', "Account for \"{$user->name}\" was successfully unlocked.");
+    }
 }

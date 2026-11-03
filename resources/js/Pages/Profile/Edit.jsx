@@ -3,6 +3,7 @@ import DeleteUserForm from "./Partials/DeleteUserForm";
 import LoginHistoryList from "./Partials/LoginHistoryList";
 import UpdatePasswordForm from "./Partials/UpdatePasswordForm";
 import UpdateProfileInformationForm from "./Partials/UpdateProfileInformationForm";
+import TwoFactorAuthenticationForm from "./Partials/TwoFactorAuthenticationForm";
 import { Head } from "@inertiajs/react";
 import {
   CheckBadgeIcon,
@@ -129,6 +130,10 @@ export default function Edit({
 
               <div className="p-6 sm:p-8 bg-white dark:bg-gray-800 shadow-sm sm:rounded-2xl border border-gray-100 dark:border-gray-700">
                 <UpdatePasswordForm />
+              </div>
+
+              <div className="p-6 sm:p-8 bg-white dark:bg-gray-800 shadow-sm sm:rounded-2xl border border-gray-100 dark:border-gray-700">
+                <TwoFactorAuthenticationForm user={user} />
               </div>
 
               <div className="p-6 sm:p-8 bg-white dark:bg-gray-800 shadow-sm sm:rounded-2xl border border-gray-100 dark:border-gray-700">

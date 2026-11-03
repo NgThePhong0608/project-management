@@ -40,6 +40,12 @@ class User extends Authenticatable implements MustVerifyEmail
         'cover_path',
         'password',
         'role',
+        'two_factor_secret',
+        'two_factor_recovery_codes',
+        'two_factor_confirmed_at',
+        'mfa_unconfigured_login_count',
+        'locked_until',
+        'lock_reason',
     ];
 
     /**
@@ -50,6 +56,8 @@ class User extends Authenticatable implements MustVerifyEmail
     protected $appends = [
         'avatar_url',
         'cover_url',
+        'has_mfa',
+        'is_locked',
     ];
 
     public function getAvatarUrlAttribute(): ?string
@@ -60,6 +68,35 @@ class User extends Authenticatable implements MustVerifyEmail
     public function getCoverUrlAttribute(): ?string
     {
         return $this->cover_path ? Storage::url($this->cover_path) : null;
+    }
+
+    public function getHasMfaAttribute(): bool
+    {
+        return ! is_null($this->two_factor_confirmed_at);
+    }
+
+    public function getIsLockedAttribute(): bool
+    {
+        return ! is_null($this->locked_until) && $this->locked_until->isFuture();
+    }
+
+    public function hasMfa(): bool
+    {
+        return $this->has_mfa;
+    }
+
+    public function isLocked(): bool
+    {
+        return $this->is_locked;
+    }
+
+    public function unlock(): void
+    {
+        $this->update([
+            'locked_until' => null,
+            'lock_reason' => null,
+            'mfa_unconfigured_login_count' => 0,
+        ]);
     }
 
     public function loginHistories(): HasMany
@@ -87,6 +124,8 @@ class User extends Authenticatable implements MustVerifyEmail
     protected $hidden = [
         'password',
         'remember_token',
+        'two_factor_secret',
+        'two_factor_recovery_codes',
     ];
 
     /**
@@ -97,6 +136,11 @@ class User extends Authenticatable implements MustVerifyEmail
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'two_factor_secret' => 'encrypted',
+        'two_factor_recovery_codes' => 'encrypted',
+        'two_factor_confirmed_at' => 'datetime',
+        'locked_until' => 'datetime',
+        'mfa_unconfigured_login_count' => 'integer',
     ];
 
     protected static function booted(): void
