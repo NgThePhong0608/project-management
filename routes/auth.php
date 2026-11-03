@@ -39,6 +39,7 @@ Route::middleware('guest')->group(function () {
         ->name('two-factor.challenge');
 
     Route::post('two-factor-challenge', [TwoFactorChallengeController::class, 'store'])
+        ->middleware('throttle:5,1')
         ->name('two-factor.login');
 });
 

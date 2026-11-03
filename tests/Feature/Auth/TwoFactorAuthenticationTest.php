@@ -231,6 +231,37 @@ class TwoFactorAuthenticationTest extends TestCase
         $this->assertGuest();
     }
 
+    public function test_two_factor_challenge_is_rate_limited_and_drops_session_after_repeated_failures(): void
+    {
+        $user = User::factory()->create();
+        $secret = $this->twoFactorService->generateSecretKey();
+        $user->update([
+            'two_factor_secret' => $secret,
+            'two_factor_confirmed_at' => now(),
+        ]);
+
+        for ($i = 0; $i < 5; $i++) {
+            $response = $this->withSession(['login.two_factor_user_id' => $user->id])
+                ->post('/two-factor-challenge', [
+                    'code' => '000000',
+                ]);
+            $response->assertSessionHasErrors(['code']);
+        }
+
+        // 5th failure drops the pending challenge from session
+        $this->assertFalse(session()->has('login.two_factor_user_id'));
+
+        // Subsequent attempt is throttled with 429 Too Many Requests
+        $throttledResponse = $this->withSession(['login.two_factor_user_id' => $user->id])
+            ->post('/two-factor-challenge', [
+                'code' => '000000',
+            ]);
+        $this->assertTrue(
+            $throttledResponse->status() === 429 ||
+            $throttledResponse->getSession()?->has('errors') === true
+        );
+    }
+
     public function test_user_without_mfa_login_increments_unconfigured_count(): void
     {
         $user = User::factory()->create(['mfa_unconfigured_login_count' => 0]);

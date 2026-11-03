@@ -10,6 +10,7 @@ use App\Services\TwoFactorService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -42,6 +43,21 @@ class TwoFactorChallengeController extends Controller
         $userId = $request->session()->get('login.two_factor_user_id');
         $user = User::findOrFail($userId);
 
+        $throttleKey = 'two-factor:'.$userId;
+
+        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $request->session()->forget(['login.two_factor_user_id', 'login.remember']);
+
+            $seconds = RateLimiter::availableIn($throttleKey);
+
+            throw ValidationException::withMessages([
+                'code' => trans('auth.throttle', [
+                    'seconds' => $seconds,
+                    'minutes' => ceil($seconds / 60),
+                ]),
+            ]);
+        }
+
         $request->validate([
             'code' => ['nullable', 'string'],
             'recovery_code' => ['nullable', 'string'],
@@ -69,12 +85,20 @@ class TwoFactorChallengeController extends Controller
         }
 
         if (! $authenticated) {
+            RateLimiter::hit($throttleKey, 300);
+
+            if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+                $request->session()->forget(['login.two_factor_user_id', 'login.remember']);
+            }
+
             $field = $request->filled('recovery_code') ? 'recovery_code' : 'code';
 
             throw ValidationException::withMessages([
                 $field => 'The provided two-factor authentication code is invalid.',
             ]);
         }
+
+        RateLimiter::clear($throttleKey);
 
         $request->session()->forget(['login.two_factor_user_id', 'login.remember']);
 
