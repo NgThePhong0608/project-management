@@ -5,6 +5,7 @@ use App\Http\Controllers\CommentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ProfileTwoFactorController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectMemberController;
 use App\Http\Controllers\TaskController;
@@ -44,6 +45,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/comments/attachment-url', [CommentController::class, 'attachmentUrl'])->name('comments.attachmentUrl');
     Route::delete('/comments/{comment}', [CommentController::class, 'destroy'])->name('comments.destroy');
     Route::patch('/user/{user}/role', [UserController::class, 'updateRole'])->name('user.updateRole');
+    Route::post('/user/{user}/unlock', [UserController::class, 'unlock'])->name('user.unlock');
     Route::resource('user', UserController::class);
 
     Route::prefix('notifications')->group(function () {
@@ -80,6 +82,14 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::match(['patch', 'post'], '/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    Route::prefix('profile/two-factor')->name('profile.two-factor.')->group(function () {
+        Route::post('enable', [ProfileTwoFactorController::class, 'enable'])->name('enable');
+        Route::post('confirm', [ProfileTwoFactorController::class, 'confirm'])->name('confirm');
+        Route::post('recovery-codes', [ProfileTwoFactorController::class, 'recoveryCodes'])->name('recovery-codes');
+        Route::post('regenerate-recovery-codes', [ProfileTwoFactorController::class, 'regenerateRecoveryCodes'])->name('regenerate-recovery-codes');
+        Route::delete('disable', [ProfileTwoFactorController::class, 'disable'])->name('disable');
+    });
 });
 
 require __DIR__.'/auth.php';

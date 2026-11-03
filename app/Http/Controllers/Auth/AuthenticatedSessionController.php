@@ -31,12 +31,16 @@ class AuthenticatedSessionController extends Controller
      */
     public function store(LoginRequest $request): RedirectResponse
     {
-        $request->authenticate();
+        $user = $request->authenticate();
+
+        if ($request->session()->has('login.two_factor_user_id')) {
+            return redirect()->route('two-factor.challenge');
+        }
 
         $request->session()->regenerate();
         $request->session()->put('last_activity_time', time());
 
-        if ($user = $request->user()) {
+        if ($user) {
             LoginHistory::record($user, 'login', $request);
         }
 

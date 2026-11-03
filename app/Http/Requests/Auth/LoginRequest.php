@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Models\User;
 use App\Rules\TurnstileRule;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\Rule;
@@ -40,9 +41,24 @@ class LoginRequest extends FormRequest
      *
      * @throws ValidationException
      */
-    public function authenticate(): void
+    public function authenticate(): ?User
     {
         $this->ensureIsNotRateLimited();
+
+        $user = User::where('email', $this->string('email'))->first();
+
+        if ($user) {
+            // If lock expired (1 day elapsed), clear the lock and reset the counter
+            if ($user->locked_until && $user->locked_until->isPast()) {
+                $user->unlock();
+            }
+
+            if ($user->isLocked()) {
+                throw ValidationException::withMessages([
+                    'email' => 'Your account has been locked due to exceeding 5 logins without setting up Two-Factor Authentication. Please contact an administrator to unlock your account.',
+                ]);
+            }
+        }
 
         if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
             RateLimiter::hit($this->throttleKey());
@@ -53,6 +69,36 @@ class LoginRequest extends FormRequest
         }
 
         RateLimiter::clear($this->throttleKey());
+
+        $authenticatedUser = Auth::user();
+
+        // Case 1: User has 2FA enabled -> Withhold full login and redirect to 2FA challenge
+        if ($authenticatedUser->hasMfa()) {
+            Auth::logout();
+            $this->session()->put('login.two_factor_user_id', $authenticatedUser->id);
+            $this->session()->put('login.two_factor_challenge_expires_at', now()->addMinutes(10)->timestamp);
+            $this->session()->put('login.remember', $this->boolean('remember'));
+
+            return null;
+        }
+
+        // Case 2: User DOES NOT have 2FA enabled -> increment counter
+        $authenticatedUser->increment('mfa_unconfigured_login_count');
+
+        if ($authenticatedUser->mfa_unconfigured_login_count >= 5) {
+            $authenticatedUser->update([
+                'locked_until' => now()->addDay(),
+                'lock_reason' => 'Exceeded 5 logins without setting up Two-Factor Authentication.',
+            ]);
+
+            Auth::logout();
+
+            throw ValidationException::withMessages([
+                'email' => 'Your account has been locked due to exceeding 5 logins without setting up Two-Factor Authentication. Please contact an administrator to unlock your account.',
+            ]);
+        }
+
+        return $authenticatedUser;
     }
 
     /**

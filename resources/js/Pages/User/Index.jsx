@@ -1,13 +1,25 @@
-import React from "react";
+import React, { useState } from "react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head, Link, router } from "@inertiajs/react";
 import Pagination from "@/Components/Pagination";
 import TextInput from "@/Components/TextInput";
 import SelectInput from "@/Components/SelectInput";
 import TableHeading from "@/Components/TableHeading";
+import Modal from "@/Components/Modal";
+import DangerButton from "@/Components/DangerButton";
+import SecondaryButton from "@/Components/SecondaryButton";
+import PrimaryButton from "@/Components/PrimaryButton";
+import {
+  LockClosedIcon,
+  ShieldCheckIcon,
+  ShieldExclamationIcon,
+} from "@heroicons/react/24/outline";
 
 const Index = ({ auth, users, queryParams = null, success }) => {
   queryParams = queryParams || {};
+
+  const [userToDelete, setUserToDelete] = useState(null);
+  const [userToUnlock, setUserToUnlock] = useState(null);
 
   const searchFieldChanged = (name, value) => {
     if (value) {
@@ -40,11 +52,22 @@ const Index = ({ auth, users, queryParams = null, success }) => {
     router.get(route("user.index", queryParams));
   };
 
-  const deleteUser = (user) => {
-    if (!window.confirm("Are you sure you want to delete this user?")) {
-      return;
-    }
-    router.delete(route("user.destroy", user.id));
+  const confirmDelete = () => {
+    if (!userToDelete) return;
+    router.delete(route("user.destroy", userToDelete.id), {
+      onFinish: () => setUserToDelete(null),
+    });
+  };
+
+  const confirmUnlock = () => {
+    if (!userToUnlock) return;
+    router.post(
+      route("user.unlock", userToUnlock.id),
+      {},
+      {
+        onFinish: () => setUserToUnlock(null),
+      },
+    );
   };
 
   const updateUserRole = (user, newRole) => {
@@ -125,6 +148,8 @@ const Index = ({ auth, users, queryParams = null, success }) => {
                         Role
                       </TableHeading>
 
+                      <th className="px-3 py-3">Security & Status</th>
+
                       <TableHeading
                         name="created_at"
                         sort_field={queryParams.sort_field}
@@ -178,6 +203,7 @@ const Index = ({ auth, users, queryParams = null, success }) => {
                       </th>
                       <th className="px-3 py-3"></th>
                       <th className="px-3 py-3"></th>
+                      <th className="px-3 py-3"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -217,9 +243,41 @@ const Index = ({ auth, users, queryParams = null, success }) => {
                           )}
                         </td>
                         <td className="px-3 py-2 text-nowrap">
-                          {user.created_at}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {user.is_locked ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 border border-red-200 dark:border-red-800">
+                                <LockClosedIcon className="w-3 h-3" />
+                                Locked
+                              </span>
+                            ) : null}
+
+                            {user.has_mfa ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+                                <ShieldCheckIcon className="w-3 h-3" />
+                                2FA Active
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                                <ShieldExclamationIcon className="w-3 h-3" />
+                                No 2FA ({user.mfa_unconfigured_login_count ?? 0}
+                                /5)
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-3 py-2 text-nowrap">
+                          {user.created_at}
+                        </td>
+                        <td className="px-3 py-2 text-nowrap text-right">
+                          {user.is_locked && auth.user.role === "admin" && (
+                            <button
+                              type="button"
+                              onClick={() => setUserToUnlock(user)}
+                              className="font-medium text-emerald-600 dark:text-emerald-400 hover:underline mx-1"
+                            >
+                              Unlock
+                            </button>
+                          )}
                           <Link
                             href={route("user.edit", user.id)}
                             className="font-medium text-blue-600 dark:text-blue-500 hover:underline mx-1"
@@ -227,7 +285,8 @@ const Index = ({ auth, users, queryParams = null, success }) => {
                             Edit
                           </Link>
                           <button
-                            onClick={(e) => deleteUser(user)}
+                            type="button"
+                            onClick={() => setUserToDelete(user)}
                             className="font-medium text-red-600 dark:text-red-500 hover:underline mx-1"
                           >
                             Delete
@@ -243,6 +302,55 @@ const Index = ({ auth, users, queryParams = null, success }) => {
           </div>
         </div>
       </div>
+
+      {/* Delete User Modal */}
+      <Modal
+        show={Boolean(userToDelete)}
+        onClose={() => setUserToDelete(null)}
+        maxWidth="md"
+      >
+        <div className="p-6">
+          <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">
+            Confirm Delete User
+          </h2>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+            Are you sure you want to delete user "{userToDelete?.name}"? All
+            associated data will be permanently removed.
+          </p>
+          <div className="mt-6 flex justify-end gap-3">
+            <SecondaryButton onClick={() => setUserToDelete(null)}>
+              Cancel
+            </SecondaryButton>
+            <DangerButton onClick={confirmDelete}>Delete User</DangerButton>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Unlock User Modal */}
+      <Modal
+        show={Boolean(userToUnlock)}
+        onClose={() => setUserToUnlock(null)}
+        maxWidth="md"
+      >
+        <div className="p-6">
+          <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">
+            Unlock Account
+          </h2>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+            Are you sure you want to unlock user "{userToUnlock?.name}"? Their
+            unconfigured login count will be reset to 0, allowing them to sign
+            in immediately.
+          </p>
+          <div className="mt-6 flex justify-end gap-3">
+            <SecondaryButton onClick={() => setUserToUnlock(null)}>
+              Cancel
+            </SecondaryButton>
+            <PrimaryButton onClick={confirmUnlock}>
+              Unlock Account
+            </PrimaryButton>
+          </div>
+        </div>
+      </Modal>
     </AuthenticatedLayout>
   );
 };

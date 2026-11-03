@@ -24,6 +24,10 @@ class UserResource extends JsonResource
             'role' => $this->role,
             'avatar_url' => $this->avatar_url,
             'cover_url' => $this->cover_url,
+            'has_mfa' => (bool) $this->has_mfa,
+            'is_locked' => (bool) $this->is_locked,
+            'mfa_unconfigured_login_count' => (int) $this->mfa_unconfigured_login_count,
+            'locked_until' => $this->locked_until?->format('Y-m-d H:i:s'),
             'created_at' => (new Carbon($this->created_at))->format('Y-m-d H:i:s'),
         ];
     }
