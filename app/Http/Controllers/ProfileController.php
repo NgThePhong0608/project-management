@@ -65,6 +65,10 @@ class ProfileController extends Controller
             'status' => session('status'),
             'loginHistories' => $loginHistories,
             'memberLoginHistories' => $memberLoginHistories,
+            'connectedAccounts' => $user->oauthAccounts()
+                ->get(['provider', 'nickname', 'avatar_url', 'created_at'])
+                ->keyBy('provider'),
+            'hasPassword' => ! empty($user->password),
         ]);
     }
 
