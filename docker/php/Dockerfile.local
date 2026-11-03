@@ -1,0 +1,27 @@
+FROM php:8.5.12-fpm-alpine
+
+# Install system dependencies & PHP extensions
+RUN apk add --no-cache libpng-dev libjpeg-turbo-dev freetype-dev \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install pdo_mysql gd pcntl
+
+# Install Composer
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+ENV COMPOSER_HOME=/tmp/composer
+WORKDIR /var/www
+
+# Configuration files
+COPY docker/php/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+COPY docker/php/logging.conf /usr/local/etc/php-fpm.d/zz-logging.conf
+COPY docker/php/uploads.ini /usr/local/etc/php/conf.d/uploads.ini
+
+# Environment variable for development
+ENV APP_ENV=dev
+
+EXPOSE 9000 8080
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+

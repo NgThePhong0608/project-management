@@ -1,9 +1,12 @@
 .git
 .github
 node_modules
+vendor
 .env
 .env.*
 .phpunit.result.cache
 tests
 storage
+bootstrap/cache/*.php
+bootstrap/cache/*.json
 docs
