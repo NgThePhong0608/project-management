@@ -28,6 +28,17 @@ class TwoFactorChallengeController extends Controller
             return redirect()->route('login');
         }
 
+        $expiresAt = $request->session()->get('login.two_factor_challenge_expires_at');
+        if ($expiresAt && time() > $expiresAt) {
+            $request->session()->forget([
+                'login.two_factor_user_id',
+                'login.two_factor_challenge_expires_at',
+                'login.remember',
+            ]);
+
+            return redirect()->route('login')->with('status', 'Your two-factor authentication challenge has expired. Please log in again.');
+        }
+
         return Inertia::render('Auth/TwoFactorChallenge');
     }
 
@@ -40,13 +51,30 @@ class TwoFactorChallengeController extends Controller
             return redirect()->route('login');
         }
 
+        $expiresAt = $request->session()->get('login.two_factor_challenge_expires_at');
+        if ($expiresAt && time() > $expiresAt) {
+            $request->session()->forget([
+                'login.two_factor_user_id',
+                'login.two_factor_challenge_expires_at',
+                'login.remember',
+            ]);
+
+            throw ValidationException::withMessages([
+                'code' => 'The two-factor authentication challenge has expired. Please log in again.',
+            ]);
+        }
+
         $userId = $request->session()->get('login.two_factor_user_id');
         $user = User::findOrFail($userId);
 
         $throttleKey = 'two-factor:'.$userId;
 
         if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
-            $request->session()->forget(['login.two_factor_user_id', 'login.remember']);
+            $request->session()->forget([
+                'login.two_factor_user_id',
+                'login.two_factor_challenge_expires_at',
+                'login.remember',
+            ]);
 
             $seconds = RateLimiter::availableIn($throttleKey);
 
@@ -87,8 +115,19 @@ class TwoFactorChallengeController extends Controller
         if (! $authenticated) {
             RateLimiter::hit($throttleKey, 300);
 
-            if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
-                $request->session()->forget(['login.two_factor_user_id', 'login.remember']);
+            $attemptsLeft = RateLimiter::remaining($throttleKey, 5);
+
+            if ($attemptsLeft <= 0) {
+                // Drop and expire pending challenge immediately upon reaching attempt limit
+                $request->session()->forget([
+                    'login.two_factor_user_id',
+                    'login.two_factor_challenge_expires_at',
+                    'login.remember',
+                ]);
+
+                throw ValidationException::withMessages([
+                    'code' => 'Too many invalid authentication attempts. Your two-factor challenge has expired. Please log in again.',
+                ]);
             }
 
             $field = $request->filled('recovery_code') ? 'recovery_code' : 'code';
@@ -100,7 +139,11 @@ class TwoFactorChallengeController extends Controller
 
         RateLimiter::clear($throttleKey);
 
-        $request->session()->forget(['login.two_factor_user_id', 'login.remember']);
+        $request->session()->forget([
+            'login.two_factor_user_id',
+            'login.two_factor_challenge_expires_at',
+            'login.remember',
+        ]);
 
         Auth::login($user, $remember);
 

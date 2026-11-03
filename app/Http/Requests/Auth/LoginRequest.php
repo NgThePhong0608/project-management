@@ -76,6 +76,7 @@ class LoginRequest extends FormRequest
         if ($authenticatedUser->hasMfa()) {
             Auth::logout();
             $this->session()->put('login.two_factor_user_id', $authenticatedUser->id);
+            $this->session()->put('login.two_factor_challenge_expires_at', now()->addMinutes(10)->timestamp);
             $this->session()->put('login.remember', $this->boolean('remember'));
 
             return null;

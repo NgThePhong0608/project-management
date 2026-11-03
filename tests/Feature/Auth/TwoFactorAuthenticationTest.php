@@ -262,6 +262,27 @@ class TwoFactorAuthenticationTest extends TestCase
         );
     }
 
+    public function test_two_factor_challenge_expires_after_time_limit(): void
+    {
+        $user = User::factory()->create();
+        $secret = $this->twoFactorService->generateSecretKey();
+        $user->update([
+            'two_factor_secret' => $secret,
+            'two_factor_confirmed_at' => now(),
+        ]);
+
+        $response = $this->withSession([
+            'login.two_factor_user_id' => $user->id,
+            'login.two_factor_challenge_expires_at' => now()->subMinute()->timestamp,
+        ])->post('/two-factor-challenge', [
+            'code' => $this->twoFactorService->getCurrentCode($secret),
+        ]);
+
+        $response->assertSessionHasErrors(['code']);
+        $this->assertFalse(session()->has('login.two_factor_user_id'));
+        $this->assertGuest();
+    }
+
     public function test_user_without_mfa_login_increments_unconfigured_count(): void
     {
         $user = User::factory()->create(['mfa_unconfigured_login_count' => 0]);
