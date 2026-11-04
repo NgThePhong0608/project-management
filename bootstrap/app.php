@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\CheckSessionIdleTimeout;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\IdentifySubdomainSession;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -16,7 +17,9 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->trustProxies(at: '*');
+        $middleware->encryptCookies(except: ['pm_device_id']);
         $middleware->web(append: [
+            IdentifySubdomainSession::class,
             CheckSessionIdleTimeout::class,
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,

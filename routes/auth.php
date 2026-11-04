@@ -9,6 +9,7 @@ use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\SocialiteController;
+use App\Http\Controllers\Auth\SubdomainMultiSessionController;
 use App\Http\Controllers\Auth\TwoFactorChallengeController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
@@ -68,6 +69,12 @@ Route::middleware('auth')->group(function () {
 
     Route::delete('auth/{provider}/unlink', [SocialiteController::class, 'unlink'])
         ->name('auth.social.unlink');
+
+    Route::prefix('auth/multi-session')->name('auth.multi-session.')->group(function () {
+        Route::post('create', [SubdomainMultiSessionController::class, 'create'])->name('create');
+        Route::post('terminate', [SubdomainMultiSessionController::class, 'terminate'])->name('terminate');
+        Route::post('terminate-all', [SubdomainMultiSessionController::class, 'terminateAll'])->name('terminate-all');
+    });
 });
 
 Route::get('auth/{provider}/redirect', [SocialiteController::class, 'redirect'])

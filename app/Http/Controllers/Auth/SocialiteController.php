@@ -51,7 +51,20 @@ class SocialiteController extends Controller
             abort(404);
         }
 
-        return $this->getDriver($provider)->redirect();
+        $driver = $this->getDriver($provider);
+
+        // Force account selection/consent so users can switch accounts if multiple exist
+        $promptParams = match ($provider) {
+            'github' => ['prompt' => 'consent'],
+            'gitlab' => ['prompt' => 'select_account'],
+            default => [],
+        };
+
+        if (! empty($promptParams) && method_exists($driver, 'with')) {
+            $driver->with($promptParams);
+        }
+
+        return $driver->redirect();
     }
 
     /**

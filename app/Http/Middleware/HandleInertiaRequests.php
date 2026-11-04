@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Models\Project;
 use App\Models\Task;
 use App\Models\User;
+use App\Services\SubdomainSessionManager;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -33,11 +34,18 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         $user = $request->user();
+        $manager = app(SubdomainSessionManager::class);
+        $deviceId = (string) ($request->attributes->get('device_id') ?? $request->cookie(IdentifySubdomainSession::DEVICE_COOKIE, ''));
+        $activeSessions = $deviceId ? array_values($manager->getActiveSessions($deviceId)) : [];
 
         return [
             ...parent::share($request),
             'auth' => [
                 'user' => $user,
+                'deviceId' => $deviceId,
+                'subdomainSlug' => $request->attributes->get('subdomain_slug'),
+                'activeSubdomainSessions' => $activeSessions,
+                'maxSubdomainSessions' => SubdomainSessionManager::MAX_SESSIONS,
                 'unreadNotificationsCount' => $user ? $user->unreadNotifications()->count() : 0,
                 'sessionIdleTimeout' => (int) config('session.idle_timeout', 15),
                 'can' => $user ? [

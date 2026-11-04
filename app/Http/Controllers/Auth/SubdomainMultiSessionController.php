@@ -1,0 +1,111 @@
+<?php
+
+namespace App\Http\Controllers\Auth;
+
+use App\Http\Controllers\Controller;
+use App\Http\Middleware\IdentifySubdomainSession;
+use App\Services\SubdomainSessionManager;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
+
+class SubdomainMultiSessionController extends Controller
+{
+    public function __construct(protected SubdomainSessionManager $manager) {}
+
+    /**
+     * Allocate a new subdomain and return the target login URL.
+     */
+    public function create(Request $request): JsonResponse
+    {
+        $deviceId = (string) ($request->attributes->get('device_id') ?? $request->cookie(IdentifySubdomainSession::DEVICE_COOKIE, ''));
+
+        if ($this->manager->isAtSessionLimit($deviceId)) {
+            return response()->json([
+                'message' => 'Maximum of 5 active sessions reached. Please close a session first.',
+            ], 422);
+        }
+
+        // Generate temporary slug for new account authentication
+        $slug = 'sess-'.Str::lower(Str::random(6));
+
+        $targetUrl = $this->buildSubdomainUrl($request, $slug, '/login?device_id='.$deviceId);
+
+        return response()->json([
+            'slug' => $slug,
+            'url' => $targetUrl,
+        ]);
+    }
+
+    /**
+     * Terminate an active subdomain session.
+     */
+    public function terminate(Request $request): JsonResponse|RedirectResponse
+    {
+        $request->validate([
+            'slug' => ['required', 'string'],
+        ]);
+
+        $deviceId = (string) ($request->attributes->get('device_id') ?? $request->cookie(IdentifySubdomainSession::DEVICE_COOKIE, ''));
+        $slug = $request->input('slug');
+
+        $this->manager->terminateSession($deviceId, $slug);
+
+        $currentSlug = $request->attributes->get('subdomain_slug');
+        if ($currentSlug === $slug) {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
+
+        if ($request->wantsJson()) {
+            return response()->json(['status' => 'terminated', 'slug' => $slug]);
+        }
+
+        return redirect()->route('login');
+    }
+
+    /**
+     * Terminate all active sessions on this device.
+     */
+    public function terminateAll(Request $request): JsonResponse|RedirectResponse
+    {
+        $deviceId = (string) ($request->attributes->get('device_id') ?? $request->cookie(IdentifySubdomainSession::DEVICE_COOKIE, ''));
+
+        $this->manager->terminateAllSessions($deviceId);
+
+        Auth::guard('web')->logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        if ($request->wantsJson()) {
+            return response()->json(['status' => 'all_terminated']);
+        }
+
+        return redirect()->route('login');
+    }
+
+    /**
+     * Build full URL on the target session subdomain.
+     */
+    protected function buildSubdomainUrl(Request $request, string $slug, string $path = '/'): string
+    {
+        $scheme = $request->getScheme();
+        $port = $request->getPort();
+        $host = explode(':', $request->getHost())[0];
+
+        // Strip current subdomain if already on one
+        if (preg_match('/^[a-z0-9]+-[a-z0-9]+\.(.+)$/i', $host, $matches)) {
+            $baseHost = $matches[1];
+        } else {
+            $baseHost = $host;
+        }
+
+        $targetHost = "{$slug}.{$baseHost}";
+        $portSuffix = ($port && ! in_array($port, [80, 443])) ? ":{$port}" : '';
+
+        return "{$scheme}://{$targetHost}{$portSuffix}{$path}";
+    }
+}

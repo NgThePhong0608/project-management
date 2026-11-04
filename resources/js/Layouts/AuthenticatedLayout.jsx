@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import ApplicationLogo from "@/Components/ApplicationLogo";
 import Dropdown from "@/Components/Dropdown";
+import SubdomainAccountSwitcher from "@/Components/SubdomainAccountSwitcher";
 import NavLink from "@/Components/NavLink";
 import NotificationDropdown from "@/Components/NotificationDropdown";
 import NotificationToast from "@/Components/NotificationToast";
@@ -244,57 +245,7 @@ export default function Authenticated({ user, header, children }) {
                 )}
               </Link>
               <NotificationDropdown />
-              <div className="ms-3 relative">
-                <Dropdown>
-                  <Dropdown.Trigger>
-                    <span className="inline-flex rounded-md">
-                      <button
-                        type="button"
-                        className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none transition ease-in-out duration-150"
-                      >
-                        {user.avatar_url ? (
-                          <img
-                            src={user.avatar_url}
-                            alt={user.name}
-                            className="h-7 w-7 rounded-full object-cover me-2 ring-1 ring-gray-200 dark:ring-gray-700"
-                          />
-                        ) : (
-                          <span className="h-7 w-7 rounded-full bg-indigo-600 text-white text-xs font-bold flex items-center justify-center me-2 uppercase">
-                            {user.name?.charAt(0) || "U"}
-                          </span>
-                        )}
-                        {user.name}
-
-                        <svg
-                          className="ms-2 -me-0.5 h-4 w-4"
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      </button>
-                    </span>
-                  </Dropdown.Trigger>
-
-                  <Dropdown.Content>
-                    <Dropdown.Link href={route("profile.edit")}>
-                      Profile
-                    </Dropdown.Link>
-                    <Dropdown.Link
-                      href={route("logout")}
-                      method="post"
-                      as="button"
-                    >
-                      Log Out
-                    </Dropdown.Link>
-                  </Dropdown.Content>
-                </Dropdown>
-              </div>
+              <SubdomainAccountSwitcher auth={auth} />
             </div>
 
             <div className="-me-2 flex items-center sm:hidden space-x-2">
@@ -390,12 +341,53 @@ export default function Authenticated({ user, header, children }) {
               <ResponsiveNavLink href={route("profile.edit")}>
                 Profile
               </ResponsiveNavLink>
+
+              {auth?.activeSubdomainSessions?.length > 1 && (
+                <div className="pt-2 pb-1 border-t border-gray-100 dark:border-gray-700">
+                  <div className="px-4 text-xs font-semibold uppercase text-gray-400">
+                    Switch Session ({auth?.activeSubdomainSessions?.length}/
+                    {auth?.maxSubdomainSessions || 5})
+                  </div>
+                  {auth?.activeSubdomainSessions
+                    ?.filter((s) => s.slug !== auth?.subdomainSlug)
+                    .map((s) => (
+                      <a
+                        key={s.slug}
+                        href={`${window.location.protocol}//${s.host}/dashboard${auth?.deviceId ? `?device_id=${encodeURIComponent(auth.deviceId)}` : ""}`}
+                        className="block px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      >
+                        Switch to {s.name} ({s.role}) - {s.slug}
+                      </a>
+                    ))}
+                </div>
+              )}
+
               <ResponsiveNavLink
                 method="post"
                 href={route("logout")}
                 as="button"
               >
-                Log Out
+                Sign out of this session
+              </ResponsiveNavLink>
+
+              <ResponsiveNavLink
+                method="post"
+                href={route("auth.multi-session.terminate-all")}
+                as="button"
+                className="text-red-600 dark:text-red-400 font-medium"
+              >
+                Sign out of all sessions (
+                {auth?.activeSubdomainSessions?.length || 1})
+              </ResponsiveNavLink>
+
+              <ResponsiveNavLink
+                method="post"
+                href={route("auth.multi-session.terminate-all")}
+                as="button"
+                className="text-red-600 dark:text-red-400 font-medium"
+              >
+                Sign out of all sessions (
+                {auth?.activeSubdomainSessions?.length || 1})
               </ResponsiveNavLink>
             </div>
           </div>
