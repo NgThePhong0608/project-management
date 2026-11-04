@@ -10,8 +10,12 @@ export default function SubdomainAccountSwitcher({ auth }) {
   const currentUser = auth?.user;
   const currentSlug = auth?.subdomainSlug;
   const activeSessions = auth?.activeSubdomainSessions || [];
+  const totalActiveCount =
+    auth?.activeSubdomainSessionsCount ?? activeSessions.length;
   const maxSessions = auth?.maxSubdomainSessions || 5;
   const isMultiSessionEnabled = auth?.multiSessionEnabled ?? false;
+  const canSwitch =
+    auth?.canSwitchSubdomainSessions ?? currentUser?.role === "admin";
 
   const otherSessions = activeSessions.filter((s) => s.slug !== currentSlug);
   const [loading, setLoading] = useState(false);
@@ -199,7 +203,7 @@ export default function SubdomainAccountSwitcher({ auth }) {
               </div>
               <span className="text-[11px] font-mono text-gray-500 dark:text-gray-400">
                 {isMultiSessionEnabled
-                  ? `${Math.min(activeSessions.length, maxSessions)} / ${maxSessions}`
+                  ? `${Math.min(totalActiveCount, maxSessions)} / ${maxSessions}`
                   : "Off"}
               </span>
             </div>
@@ -226,8 +230,8 @@ export default function SubdomainAccountSwitcher({ auth }) {
             </div>
           </div>
 
-          {/* Other Active Subdomain Sessions (Only if enabled) */}
-          {isMultiSessionEnabled && otherSessions.length > 0 && (
+          {/* Other Active Subdomain Sessions (Admins only) */}
+          {isMultiSessionEnabled && canSwitch && otherSessions.length > 0 && (
             <div className="border-t border-gray-100 dark:border-gray-700 py-1">
               <div className="px-4 py-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
                 Switch Subdomain Session
@@ -328,7 +332,7 @@ export default function SubdomainAccountSwitcher({ auth }) {
               >
                 <span>Sign out of all sessions</span>
                 <span className="text-xs bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 font-mono px-1.5 py-0.5 rounded">
-                  {activeSessions.length}
+                  {totalActiveCount}
                 </span>
               </button>
             )}
@@ -347,7 +351,7 @@ export default function SubdomainAccountSwitcher({ auth }) {
           </h2>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
             Disabling multi-session will immediately sign out all active
-            sessions ({activeSessions.length}) across all tabs on this browser.
+            sessions ({totalActiveCount}) across all tabs on this browser.
           </p>
           <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md">
             <p className="text-xs text-amber-800 dark:text-amber-300 font-medium flex items-center">

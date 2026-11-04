@@ -342,25 +342,28 @@ export default function Authenticated({ user, header, children }) {
                 Profile
               </ResponsiveNavLink>
 
-              {auth?.activeSubdomainSessions?.length > 1 && (
-                <div className="pt-2 pb-1 border-t border-gray-100 dark:border-gray-700">
-                  <div className="px-4 text-xs font-semibold uppercase text-gray-400">
-                    Switch Session ({auth?.activeSubdomainSessions?.length}/
-                    {auth?.maxSubdomainSessions || 5})
+              {auth?.canSwitchSubdomainSessions &&
+                auth?.activeSubdomainSessions?.length > 1 && (
+                  <div className="pt-2 pb-1 border-t border-gray-100 dark:border-gray-700">
+                    <div className="px-4 text-xs font-semibold uppercase text-gray-400">
+                      Switch Session (
+                      {auth?.activeSubdomainSessionsCount ||
+                        auth?.activeSubdomainSessions?.length}
+                      /{auth?.maxSubdomainSessions || 5})
+                    </div>
+                    {auth?.activeSubdomainSessions
+                      ?.filter((s) => s.slug !== auth?.subdomainSlug)
+                      .map((s) => (
+                        <a
+                          key={s.slug}
+                          href={`${window.location.protocol}//${s.host}/dashboard${auth?.deviceId ? `?device_id=${encodeURIComponent(auth.deviceId)}` : ""}`}
+                          className="block px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        >
+                          Switch to {s.name} ({s.role}) - {s.slug}
+                        </a>
+                      ))}
                   </div>
-                  {auth?.activeSubdomainSessions
-                    ?.filter((s) => s.slug !== auth?.subdomainSlug)
-                    .map((s) => (
-                      <a
-                        key={s.slug}
-                        href={`${window.location.protocol}//${s.host}/dashboard${auth?.deviceId ? `?device_id=${encodeURIComponent(auth.deviceId)}` : ""}`}
-                        className="block px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                      >
-                        Switch to {s.name} ({s.role}) - {s.slug}
-                      </a>
-                    ))}
-                </div>
-              )}
+                )}
 
               {auth?.multiSessionEnabled ? (
                 <ResponsiveNavLink

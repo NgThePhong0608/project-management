@@ -36,7 +36,14 @@ class HandleInertiaRequests extends Middleware
         $user = $request->user();
         $manager = app(SubdomainSessionManager::class);
         $deviceId = (string) ($request->attributes->get('device_id') ?? $request->cookie(IdentifySubdomainSession::DEVICE_COOKIE, ''));
-        $activeSessions = $deviceId ? array_values($manager->getActiveSessions($deviceId)) : [];
+        $rawSessions = $deviceId ? array_values($manager->getActiveSessions($deviceId)) : [];
+        $totalSessionsCount = count($rawSessions);
+
+        // Only admins can see and switch to other active sessions. Non-admins only see count.
+        $isAdmin = (bool) ($user && $user->role === 'admin');
+        $activeSessions = $isAdmin
+            ? $rawSessions
+            : array_values(array_filter($rawSessions, fn ($s) => ($s['slug'] ?? '') === $request->attributes->get('subdomain_slug')));
 
         return [
             ...parent::share($request),
@@ -45,7 +52,9 @@ class HandleInertiaRequests extends Middleware
                 'deviceId' => $deviceId,
                 'subdomainSlug' => $request->attributes->get('subdomain_slug'),
                 'multiSessionEnabled' => $deviceId ? $manager->isMultiSessionEnabled($deviceId) : false,
+                'canSwitchSubdomainSessions' => $isAdmin,
                 'activeSubdomainSessions' => $activeSessions,
+                'activeSubdomainSessionsCount' => $totalSessionsCount,
                 'maxSubdomainSessions' => SubdomainSessionManager::MAX_SESSIONS,
                 'unreadNotificationsCount' => $user ? $user->unreadNotifications()->count() : 0,
                 'sessionIdleTimeout' => (int) config('session.idle_timeout', 15),

@@ -109,7 +109,7 @@ class SubdomainMultiSessionTest extends TestCase
     {
         $deviceId = 'device_test_term';
         $manager = app(SubdomainSessionManager::class);
-        $user1 = User::factory()->create();
+        $user1 = User::factory()->create(['role' => 'admin']);
         $slug1 = $manager->generateSlug($user1);
         $manager->registerSession($deviceId, $slug1, $user1);
 
@@ -121,6 +121,41 @@ class SubdomainMultiSessionTest extends TestCase
 
         $response->assertOk();
         $this->assertArrayNotHasKey($slug1, $manager->getActiveSessions($deviceId));
+    }
+
+    public function test_non_admin_cannot_terminate_other_sessions(): void
+    {
+        $deviceId = 'device_test_term_perm';
+        $manager = app(SubdomainSessionManager::class);
+        $manager->enableMultiSession($deviceId);
+
+        $admin = User::factory()->create(['role' => 'admin']);
+        $member = User::factory()->create(['role' => 'member']);
+        $slugAdmin = $manager->generateSlug($admin);
+        $slugMember = $manager->generateSlug($member);
+
+        $manager->registerSession($deviceId, $slugAdmin, $admin);
+        $manager->registerSession($deviceId, $slugMember, $member);
+
+        // Member tries to terminate Admin's session
+        $response = $this->withUnencryptedCookies(['pm_device_id' => $deviceId])
+            ->actingAs($member)
+            ->post('http://localhost:8088/auth/multi-session/terminate', [
+                'slug' => $slugAdmin,
+            ], ['Accept' => 'application/json']);
+
+        $response->assertStatus(403);
+        $this->assertArrayHasKey($slugAdmin, $manager->getActiveSessions($deviceId));
+
+        // Admin terminates Member's session
+        $response = $this->withUnencryptedCookies(['pm_device_id' => $deviceId])
+            ->actingAs($admin)
+            ->post('http://localhost:8088/auth/multi-session/terminate', [
+                'slug' => $slugMember,
+            ], ['Accept' => 'application/json']);
+
+        $response->assertOk();
+        $this->assertArrayNotHasKey($slugMember, $manager->getActiveSessions($deviceId));
     }
 
     public function test_can_terminate_all_subdomain_sessions(): void

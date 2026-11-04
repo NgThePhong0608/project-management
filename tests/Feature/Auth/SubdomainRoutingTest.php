@@ -42,9 +42,41 @@ class SubdomainRoutingTest extends TestCase
         $response->assertOk();
         $response->assertInertia(fn ($page) => $page
             ->where('auth.subdomainSlug', $slug)
+            ->where('auth.canSwitchSubdomainSessions', true)
             ->has('auth.activeSubdomainSessions', 1)
             ->where('auth.activeSubdomainSessions.0.slug', $slug)
             ->where('auth.activeSubdomainSessions.0.role', 'admin')
+        );
+    }
+
+    public function test_non_admin_only_sees_count_not_other_session_details(): void
+    {
+        $deviceId = 'device_routing_non_admin';
+        $admin = User::factory()->create(['name' => 'Root Admin', 'role' => 'admin']);
+        $member = User::factory()->create(['name' => 'Regular Member', 'role' => 'member']);
+
+        $manager = app(SubdomainSessionManager::class);
+        $manager->enableMultiSession($deviceId);
+        $slugAdmin = $manager->generateSlug($admin);
+        $slugMember = $manager->generateSlug($member);
+
+        $manager->registerSession($deviceId, $slugAdmin, $admin, "{$slugAdmin}.localhost");
+        $manager->registerSession($deviceId, $slugMember, $member, "{$slugMember}.localhost");
+
+        // Member requests dashboard
+        $response = $this->withUnencryptedCookies(['pm_device_id' => $deviceId])
+            ->actingAs($member)
+            ->get("http://{$slugMember}.localhost:8088/dashboard");
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page
+            ->where('auth.subdomainSlug', $slugMember)
+            ->where('auth.canSwitchSubdomainSessions', false)
+            ->where('auth.activeSubdomainSessionsCount', 2)
+            // Does not see admin's session in activeSubdomainSessions list
+            ->has('auth.activeSubdomainSessions', 1)
+            ->where('auth.activeSubdomainSessions.0.slug', $slugMember)
+            ->where('auth.activeSubdomainSessions.0.role', 'member')
         );
     }
 }

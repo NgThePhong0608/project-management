@@ -94,6 +94,11 @@ class SubdomainMultiSessionController extends Controller
 
         $deviceId = (string) ($request->attributes->get('device_id') ?? $request->cookie(IdentifySubdomainSession::DEVICE_COOKIE, ''));
         $slug = $request->input('slug');
+        $currentSlug = $request->attributes->get('subdomain_slug');
+
+        if ($currentSlug !== $slug && $request->user()?->role !== 'admin') {
+            return response()->json(['message' => 'Only administrators can terminate other sessions.'], 403);
+        }
 
         $this->manager->terminateSession($deviceId, $slug);
 
