@@ -138,24 +138,20 @@ class SubdomainMultiSessionController extends Controller
     }
 
     /**
-     * Build full URL on the target session subdomain.
+     * Build full URL on the target session subdomain using config('app.url') to prevent host header injection.
      */
     protected function buildSubdomainUrl(Request $request, string $slug, string $path = '/'): string
     {
-        $scheme = $request->getScheme();
-        $port = $request->getPort();
-        $host = explode(':', $request->getHost())[0];
-
-        // Strip current subdomain if already on one
-        if (preg_match('/^[a-z0-9]+-[a-z0-9]+\.(.+)$/i', $host, $matches)) {
-            $baseHost = $matches[1];
-        } else {
-            $baseHost = $host;
+        if (! preg_match('/^[a-z0-9]+-[a-z0-9]+$/i', $slug)) {
+            abort(400, 'Invalid subdomain slug.');
         }
 
-        $targetHost = "{$slug}.{$baseHost}";
-        $portSuffix = ($port && ! in_array($port, [80, 443])) ? ":{$port}" : '';
+        $appUrl = (string) config('app.url', 'http://localhost');
+        $parsed = parse_url($appUrl);
+        $scheme = $parsed['scheme'] ?? 'http';
+        $baseHost = $parsed['host'] ?? 'localhost';
+        $port = isset($parsed['port']) ? ":{$parsed['port']}" : '';
 
-        return "{$scheme}://{$targetHost}{$portSuffix}{$path}";
+        return "{$scheme}://{$slug}.{$baseHost}{$port}{$path}";
     }
 }

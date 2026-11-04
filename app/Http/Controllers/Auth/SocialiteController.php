@@ -76,13 +76,31 @@ class SocialiteController extends Controller
             parse_str(parse_url($targetUrl, PHP_URL_QUERY) ?? '', $query);
             $state = $query['state'] ?? null;
             if ($state) {
+                // Cryptographically bind this handoff to the initiating browser
+                $browserBinding = hash_hmac('sha256', $state, (string) config('app.key'));
                 $deviceId = (string) ($request->attributes->get('device_id') ?? $request->cookie(IdentifySubdomainSession::DEVICE_COOKIE, ''));
+
                 Cache::put("oauth_handoff:{$state}", [
                     'slug' => $slug,
-                    'host' => $request->getHttpHost(),
+                    'browser_binding' => $browserBinding,
                     'device_id' => $deviceId,
-                    'scheme' => $request->getScheme(),
                 ], 600); // 10 minutes
+
+                // Set parent domain cookie so the initiating browser sends it to the primary callback host
+                $appHost = (string) (parse_url((string) config('app.url'), PHP_URL_HOST) ?? 'localhost');
+                $cookieDomain = (new IdentifySubdomainSession(app(SubdomainSessionManager::class)))->getBaseDomainForCookie($appHost);
+
+                $redirectResponse->headers->setCookie(cookie(
+                    'oauth_browser_state',
+                    $browserBinding,
+                    10,
+                    '/',
+                    $cookieDomain,
+                    $request->isSecure(),
+                    true,
+                    false,
+                    'Lax'
+                ));
             }
         }
 
@@ -98,8 +116,21 @@ class SocialiteController extends Controller
             abort(404);
         }
 
-        $state = $request->query('state');
+        $state = (string) $request->query('state');
         $handoff = $state ? Cache::pull("oauth_handoff:{$state}") : null;
+
+        // Verify that the browser completing the callback is the same browser that initiated the handoff
+        if ($handoff) {
+            $cookieBinding = (string) $request->cookie('oauth_browser_state');
+            if (empty($cookieBinding) || ! hash_equals($handoff['browser_binding'], $cookieBinding)) {
+                Log::warning("OAuth browser mismatch for state [{$state}]: potential CSRF or account takeover blocked.");
+
+                return redirect()->away($this->buildSafeRootUrl('/login'))->with([
+                    'status' => 'Authentication session mismatch. Please try signing in again.',
+                    'status_type' => 'error',
+                ]);
+            }
+        }
 
         try {
             $driver = $this->getDriver($provider);
@@ -107,7 +138,7 @@ class SocialiteController extends Controller
         } catch (Throwable $e) {
             Log::warning("OAuth login failed for provider [{$provider}]: ".$e->getMessage());
 
-            return redirect()->route('login')->with([
+            return redirect()->away($this->buildSafeRootUrl('/login'))->with([
                 'status' => 'Authentication via '.strtoupper($provider).' was cancelled or encountered an error.',
                 'status_type' => 'error',
             ]);
@@ -196,7 +227,7 @@ class SocialiteController extends Controller
 
         // Security check: Lockout status
         if ($user->is_locked) {
-            return redirect()->route('login')->withErrors([
+            return redirect()->away($this->buildSafeRootUrl('/login'))->withErrors([
                 'email' => $user->lock_reason ?? 'Your account is locked.',
             ]);
         }
@@ -211,8 +242,7 @@ class SocialiteController extends Controller
                 'device_id' => $handoff['device_id'],
             ], 120);
 
-            $scheme = $handoff['scheme'] ?? $request->getScheme();
-            $handoffUrl = "{$scheme}://{$handoff['host']}/auth/oauth-handoff?token={$handoffToken}";
+            $handoffUrl = $this->buildSafeSubdomainUrl($handoff['slug'], '/auth/oauth-handoff?token='.$handoffToken);
 
             return redirect()->away($handoffUrl);
         }
@@ -248,7 +278,7 @@ class SocialiteController extends Controller
     {
         $token = $request->query('token');
         if (! $token || ! is_string($token)) {
-            return redirect()->route('login')->with([
+            return redirect()->away($this->buildSafeRootUrl('/login'))->with([
                 'status' => 'Invalid or expired authentication handoff.',
                 'status_type' => 'error',
             ]);
@@ -256,7 +286,7 @@ class SocialiteController extends Controller
 
         $payload = Cache::pull("oauth_auth_handoff:{$token}");
         if (! $payload || ! isset($payload['user_id'])) {
-            return redirect()->route('login')->with([
+            return redirect()->away($this->buildSafeRootUrl('/login'))->with([
                 'status' => 'Authentication handoff has expired. Please try signing in again.',
                 'status_type' => 'error',
             ]);
@@ -264,7 +294,7 @@ class SocialiteController extends Controller
 
         $currentSlug = $request->attributes->get('subdomain_slug');
         if ($currentSlug !== ($payload['slug'] ?? '')) {
-            return redirect()->route('login')->with([
+            return redirect()->away($this->buildSafeRootUrl('/login'))->with([
                 'status' => 'Session mismatch during handoff.',
                 'status_type' => 'error',
             ]);
@@ -313,5 +343,37 @@ class SocialiteController extends Controller
         $user->oauthAccounts()->where('provider', $provider)->delete();
 
         return back()->with('status', strtoupper($provider).' account disconnected.');
+    }
+
+    /**
+     * Build safe subdomain URL from server-side config('app.url') and validated slug, never from request headers.
+     */
+    protected function buildSafeSubdomainUrl(string $slug, string $path = '/'): string
+    {
+        if (! preg_match('/^[a-z0-9]+-[a-z0-9]+$/i', $slug)) {
+            abort(400, 'Invalid subdomain slug.');
+        }
+
+        $appUrl = (string) config('app.url', 'http://localhost');
+        $parsed = parse_url($appUrl);
+        $scheme = $parsed['scheme'] ?? 'http';
+        $baseHost = $parsed['host'] ?? 'localhost';
+        $port = isset($parsed['port']) ? ":{$parsed['port']}" : '';
+
+        return "{$scheme}://{$slug}.{$baseHost}{$port}{$path}";
+    }
+
+    /**
+     * Build safe root URL from server-side config('app.url'), never from request headers.
+     */
+    protected function buildSafeRootUrl(string $path = '/login'): string
+    {
+        $appUrl = (string) config('app.url', 'http://localhost');
+        $parsed = parse_url($appUrl);
+        $scheme = $parsed['scheme'] ?? 'http';
+        $baseHost = $parsed['host'] ?? 'localhost';
+        $port = isset($parsed['port']) ? ":{$parsed['port']}" : '';
+
+        return "{$scheme}://{$baseHost}{$port}{$path}";
     }
 }

@@ -17,7 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->trustProxies(at: '*');
-        $middleware->encryptCookies(except: ['pm_device_id']);
+        $middleware->encryptCookies(except: ['pm_device_id', 'oauth_browser_state']);
         $middleware->web(append: [
             IdentifySubdomainSession::class,
             CheckSessionIdleTimeout::class,

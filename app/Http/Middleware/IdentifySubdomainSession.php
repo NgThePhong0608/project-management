@@ -134,19 +134,13 @@ class IdentifySubdomainSession
      */
     public function buildRootUrl(Request $request, string $path = '/'): string
     {
-        $scheme = $request->getScheme();
-        $port = $request->getPort();
-        $host = explode(':', $request->getHost())[0];
+        $appUrl = (string) config('app.url', 'http://localhost');
+        $parsed = parse_url($appUrl);
+        $scheme = $parsed['scheme'] ?? 'http';
+        $baseHost = $parsed['host'] ?? 'localhost';
+        $port = isset($parsed['port']) ? ":{$parsed['port']}" : '';
 
-        if (preg_match('/^[a-z0-9]+-[a-z0-9]+\.(.+)$/i', $host, $matches)) {
-            $baseHost = $matches[1];
-        } else {
-            $baseHost = $host;
-        }
-
-        $portSuffix = ($port && ! in_array($port, [80, 443])) ? ":{$port}" : '';
-
-        return "{$scheme}://{$baseHost}{$portSuffix}{$path}";
+        return "{$scheme}://{$baseHost}{$port}{$path}";
     }
 
     /**
