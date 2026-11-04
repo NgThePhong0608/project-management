@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Middleware\IdentifySubdomainSession;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Models\LoginHistory;
 use App\Providers\RouteServiceProvider;
+use App\Services\SubdomainSessionManager;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -40,6 +42,13 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
         $request->session()->put('last_activity_time', time());
+        $request->session()->put('subdomain_session_time', time());
+
+        $deviceId = (string) ($request->attributes->get('device_id') ?? $request->cookie(IdentifySubdomainSession::DEVICE_COOKIE, ''));
+        $slug = (string) ($request->attributes->get('subdomain_slug') ?? 'primary');
+        if ($deviceId) {
+            app(SubdomainSessionManager::class)->clearSessionTermination($deviceId, $slug);
+        }
 
         if ($user) {
             LoginHistory::record($user, 'login', $request);
@@ -57,6 +66,12 @@ class AuthenticatedSessionController extends Controller
 
         if ($user = $request->user()) {
             LoginHistory::record($user, $isIdleLogout ? 'idle_logout' : 'logout', $request);
+        }
+
+        $deviceId = (string) ($request->attributes->get('device_id') ?? $request->cookie(IdentifySubdomainSession::DEVICE_COOKIE, ''));
+        $slug = $request->attributes->get('subdomain_slug');
+        if ($deviceId && $slug) {
+            app(SubdomainSessionManager::class)->unregisterSession($deviceId, $slug);
         }
 
         Auth::guard('web')->logout();

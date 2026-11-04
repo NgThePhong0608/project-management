@@ -4,6 +4,7 @@ namespace Tests\Feature\Auth;
 
 use App\Models\OAuthAccount;
 use App\Models\User;
+use App\Services\SubdomainSessionManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Socialite\Contracts\Provider;
 use Laravel\Socialite\Facades\Socialite;
@@ -254,5 +255,171 @@ class SocialiteAuthenticationTest extends TestCase
             'user_id' => $user->id,
             'provider' => 'github',
         ]);
+    }
+
+    public function test_subdomain_oauth_handoff_authenticates_on_initiating_host(): void
+    {
+        $deviceId = 'device_test_oauth_sub';
+        $manager = app(SubdomainSessionManager::class);
+        $manager->enableMultiSession($deviceId);
+
+        // 1. Initiate OAuth on subdomain host
+        $redirectRes = $this->withUnencryptedCookies(['pm_device_id' => $deviceId])
+            ->get('http://sess-1234.localhost:8088/auth/github/redirect');
+        $redirectRes->assertStatus(302);
+
+        $targetUrl = $redirectRes->headers->get('Location');
+        parse_str(parse_url($targetUrl, PHP_URL_QUERY) ?? '', $query);
+        $state = $query['state'] ?? null;
+        $this->assertNotNull($state);
+
+        $browserState = $redirectRes->getCookie('oauth_browser_state', false)?->getValue();
+        $this->assertNotNull($browserState);
+        $sessionNonce = session('oauth_handoff_nonce');
+        $this->assertNotNull($sessionNonce);
+
+        // 2. Mock Socialite driver
+        $mockSocialUser = new SocialiteUser;
+        $mockSocialUser->id = 'gh-sub-999';
+        $mockSocialUser->name = 'Subdomain Dev';
+        $mockSocialUser->nickname = 'subdev';
+        $mockSocialUser->email = 'subdev@example.com';
+        $mockSocialUser->avatar = 'https://github.com/avatar.png';
+        $mockSocialUser->token = 'mock_sub_token';
+
+        $mockProvider = Mockery::mock(Provider::class);
+        $mockProvider->shouldReceive('stateless')->once()->andReturnSelf();
+        $mockProvider->shouldReceive('user')->once()->andReturn($mockSocialUser);
+
+        Socialite::shouldReceive('driver')->with('github')->andReturn($mockProvider);
+
+        // 3. Callback hits primary host with initiating browser cookie
+        $callbackRes = $this->withUnencryptedCookies([
+            'pm_device_id' => $deviceId,
+            'oauth_browser_state' => $browserState,
+        ])
+            ->get("http://localhost:8088/auth/github/callback?code=mock_code&state={$state}");
+        $callbackRes->assertStatus(302);
+
+        $handoffUrl = $callbackRes->headers->get('Location');
+        $this->assertStringContainsString('sess-1234.localhost:8088/auth/oauth-handoff?token=', $handoffUrl);
+
+        // Primary host must remain unauthenticated
+        $this->assertFalse(auth()->check());
+
+        // 4. Client completes handoff on the initiating subdomain host carrying the session nonce
+        $handoffRes = $this->withSession(['oauth_handoff_nonce' => $sessionNonce])
+            ->withUnencryptedCookies(['pm_device_id' => $deviceId])
+            ->get($handoffUrl);
+        $handoffRes->assertRedirect(route('dashboard', absolute: false));
+        $this->assertTrue(auth()->check());
+        $this->assertEquals('subdev@example.com', auth()->user()->email);
+
+        $this->assertDatabaseHas('oauth_accounts', [
+            'provider' => 'github',
+            'provider_id' => 'gh-sub-999',
+        ]);
+    }
+
+    public function test_oauth_handoff_rejects_missing_or_mismatched_session_nonce_preventing_login_csrf(): void
+    {
+        $deviceId = 'device_attacker_csrf';
+        $manager = app(SubdomainSessionManager::class);
+        $manager->enableMultiSession($deviceId);
+
+        // 1. Attacker initiates OAuth on subdomain host and gets valid state + session nonce
+        $redirectRes = $this->withUnencryptedCookies(['pm_device_id' => $deviceId])
+            ->get('http://sess-1234.localhost:8088/auth/github/redirect');
+        $redirectRes->assertStatus(302);
+
+        $targetUrl = $redirectRes->headers->get('Location');
+        parse_str(parse_url($targetUrl, PHP_URL_QUERY) ?? '', $query);
+        $state = $query['state'] ?? null;
+        $browserState = $redirectRes->getCookie('oauth_browser_state', false)?->getValue();
+
+        // 2. Mock Socialite driver for attacker's social account
+        $mockSocialUser = new SocialiteUser;
+        $mockSocialUser->id = 'gh-attacker-888';
+        $mockSocialUser->name = 'Attacker Account';
+        $mockSocialUser->nickname = 'attacker';
+        $mockSocialUser->email = 'attacker@example.com';
+        $mockSocialUser->avatar = 'https://github.com/avatar.png';
+        $mockSocialUser->token = 'mock_atk_token';
+
+        $mockProvider = Mockery::mock(Provider::class);
+        $mockProvider->shouldReceive('stateless')->once()->andReturnSelf();
+        $mockProvider->shouldReceive('user')->once()->andReturn($mockSocialUser);
+        Socialite::shouldReceive('driver')->with('github')->andReturn($mockProvider);
+
+        // 3. Attacker completes OAuth callback on primary host to obtain valid handoff URL
+        $callbackRes = $this->withUnencryptedCookies([
+            'pm_device_id' => $deviceId,
+            'oauth_browser_state' => $browserState,
+        ])
+            ->get("http://localhost:8088/auth/github/callback?code=mock_code&state={$state}");
+        $callbackRes->assertStatus(302);
+        $handoffUrl = $callbackRes->headers->get('Location');
+
+        // 4. Attacker sends handoffUrl to a victim with multi-session enabled. Victim visits without the attacker's session nonce.
+        $this->flushSession();
+        $victimDeviceId = 'device_victim_multi';
+        $manager->enableMultiSession($victimDeviceId);
+        $victimRes = $this->withUnencryptedCookies(['pm_device_id' => $victimDeviceId])
+            ->get($handoffUrl);
+
+        // Must reject handoff and prevent Login CSRF
+        $victimRes->assertRedirect('http://localhost:8088/login');
+        $victimRes->assertSessionHas('status', 'Authentication handoff session mismatch. Please try signing in again.');
+        $this->assertFalse(auth()->check());
+    }
+
+    public function test_oauth_handoff_rejects_browser_mismatch_preventing_account_takeover(): void
+    {
+        $attackerDeviceId = 'device_attacker';
+        $manager = app(SubdomainSessionManager::class);
+        $manager->enableMultiSession($attackerDeviceId);
+
+        // 1. Attacker initiates flow with malicious X-Forwarded-Host
+        $redirectRes = $this->withHeaders(['X-Forwarded-Host' => 'a-b.evil.com'])
+            ->withUnencryptedCookies(['pm_device_id' => $attackerDeviceId])
+            ->get('http://sess-evil.localhost:8088/auth/github/redirect');
+
+        $redirectRes->assertStatus(302);
+        $targetUrl = $redirectRes->headers->get('Location');
+        parse_str(parse_url($targetUrl, PHP_URL_QUERY) ?? '', $query);
+        $state = $query['state'] ?? null;
+        $this->assertNotNull($state);
+
+        // Attacker gets browser binding on attacker's client
+        $attackerBrowserState = $redirectRes->getCookie('oauth_browser_state', false)?->getValue();
+        $this->assertNotNull($attackerBrowserState);
+
+        // 2. Mock Socialite driver
+        $mockSocialUser = new SocialiteUser;
+        $mockSocialUser->id = 'gh-victim-111';
+        $mockSocialUser->name = 'Victim User';
+        $mockSocialUser->nickname = 'victim';
+        $mockSocialUser->email = 'victim@example.com';
+        $mockSocialUser->avatar = 'https://github.com/avatar.png';
+        $mockSocialUser->token = 'mock_victim_token';
+
+        $mockProvider = Mockery::mock(Provider::class);
+        $mockProvider->shouldNotReceive('stateless');
+        $mockProvider->shouldNotReceive('user');
+        Socialite::shouldReceive('driver')->with('github')->andReturn($mockProvider);
+
+        // 3. Victim visits real callback with provider state, but victim has NO matching browser binding cookie
+        $this->flushHeaders();
+        $victimCallbackRes = $this->withUnencryptedCookies(['pm_device_id' => 'device_victim'])
+            ->get("http://localhost:8088/auth/github/callback?code=mock_code&state={$state}");
+
+        // Must reject callback immediately before user extraction and never redirect to attacker host
+        $victimCallbackRes->assertRedirect('http://localhost:8088/login');
+        $this->assertStringNotContainsString('evil.com', (string) $victimCallbackRes->headers->get('Location'));
+        $victimCallbackRes->assertSessionHas('status', 'Authentication session mismatch. Please try signing in again.');
+
+        // Victim account must not be created or handed off
+        $this->assertDatabaseMissing('users', ['email' => 'victim@example.com']);
+        $this->assertFalse(auth()->check());
     }
 }
