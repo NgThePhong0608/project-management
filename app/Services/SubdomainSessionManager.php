@@ -41,11 +41,19 @@ class SubdomainSessionManager
     }
 
     /**
+     * Get cache store instance (array in testing environment, redis in dev/production).
+     */
+    protected function cache()
+    {
+        return app()->environment('testing') ? Cache::store() : Cache::store('redis');
+    }
+
+    /**
      * Retrieve all active subdomain sessions for a device from Redis.
      */
     public function getActiveSessions(string $deviceId): array
     {
-        $sessions = Cache::store('redis')->get($this->getCacheKey($deviceId));
+        $sessions = $this->cache()->get($this->getCacheKey($deviceId));
 
         return is_array($sessions) ? $sessions : [];
     }
@@ -65,12 +73,12 @@ class SubdomainSessionManager
      */
     public function isSessionRevoked(string $deviceId, string $slug, ?int $loginTime = null): bool
     {
-        $revokedAllAt = Cache::store('redis')->get(self::REVOCATION_PREFIX.$deviceId);
+        $revokedAllAt = $this->cache()->get(self::REVOCATION_PREFIX.$deviceId);
         if ($revokedAllAt !== null && $loginTime !== null && $loginTime <= (int) $revokedAllAt) {
             return true;
         }
 
-        return (bool) Cache::store('redis')->get("terminated_session:{$deviceId}:{$slug}");
+        return (bool) $this->cache()->get("terminated_session:{$deviceId}:{$slug}");
     }
 
     /**
@@ -101,8 +109,8 @@ class SubdomainSessionManager
             'last_active_at' => time(),
         ];
 
-        Cache::store('redis')->forget("terminated_session:{$deviceId}:{$slug}");
-        Cache::store('redis')->put($this->getCacheKey($deviceId), $sessions, self::CACHE_TTL);
+        $this->cache()->forget("terminated_session:{$deviceId}:{$slug}");
+        $this->cache()->put($this->getCacheKey($deviceId), $sessions, self::CACHE_TTL);
 
         return $sessions[$slug];
     }
@@ -115,8 +123,8 @@ class SubdomainSessionManager
         $sessions = $this->getActiveSessions($deviceId);
         unset($sessions[$slug]);
 
-        Cache::store('redis')->put("terminated_session:{$deviceId}:{$slug}", true, self::CACHE_TTL);
-        Cache::store('redis')->put($this->getCacheKey($deviceId), $sessions, self::CACHE_TTL);
+        $this->cache()->put("terminated_session:{$deviceId}:{$slug}", true, self::CACHE_TTL);
+        $this->cache()->put($this->getCacheKey($deviceId), $sessions, self::CACHE_TTL);
     }
 
     /**
@@ -124,7 +132,7 @@ class SubdomainSessionManager
      */
     public function terminateAllSessions(string $deviceId): void
     {
-        Cache::store('redis')->put(self::REVOCATION_PREFIX.$deviceId, time(), self::CACHE_TTL);
-        Cache::store('redis')->forget($this->getCacheKey($deviceId));
+        $this->cache()->put(self::REVOCATION_PREFIX.$deviceId, time(), self::CACHE_TTL);
+        $this->cache()->forget($this->getCacheKey($deviceId));
     }
 }

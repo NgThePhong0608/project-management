@@ -15,7 +15,7 @@ class SubdomainMultiSessionTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Cache::store('redis')->flush();
+        Cache::flush();
     }
 
     public function test_can_create_new_session_subdomain(): void

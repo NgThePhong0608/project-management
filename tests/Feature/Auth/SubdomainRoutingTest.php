@@ -15,7 +15,7 @@ class SubdomainRoutingTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Cache::store('redis')->flush();
+        Cache::flush();
     }
 
     public function test_root_domain_request_sets_device_cookie(): void
