@@ -105,7 +105,37 @@ class SubdomainSessionManager
             return true;
         }
 
-        return (bool) $this->cache()->get("terminated_session:{$deviceId}:{$slug}");
+        $terminatedAt = $this->cache()->get("terminated_session:{$deviceId}:{$slug}");
+        if ($terminatedAt !== null) {
+            if ($terminatedAt === true) {
+                return true;
+            }
+            if ($loginTime !== null && $loginTime <= (int) $terminatedAt) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Clear termination marker for a session slug upon fresh authentication.
+     */
+    public function clearSessionTermination(string $deviceId, string $slug): void
+    {
+        $this->cache()->forget("terminated_session:{$deviceId}:{$slug}");
+    }
+
+    /**
+     * Unregister a session slug upon voluntary logout without setting a termination tombstone.
+     */
+    public function unregisterSession(string $deviceId, string $slug): void
+    {
+        $sessions = $this->getActiveSessions($deviceId);
+        unset($sessions[$slug]);
+
+        $this->cache()->forget("terminated_session:{$deviceId}:{$slug}");
+        $this->cache()->put($this->getCacheKey($deviceId), $sessions, self::CACHE_TTL);
     }
 
     /**
@@ -150,7 +180,7 @@ class SubdomainSessionManager
         $sessions = $this->getActiveSessions($deviceId);
         unset($sessions[$slug]);
 
-        $this->cache()->put("terminated_session:{$deviceId}:{$slug}", true, self::CACHE_TTL);
+        $this->cache()->put("terminated_session:{$deviceId}:{$slug}", time(), self::CACHE_TTL);
         $this->cache()->put($this->getCacheKey($deviceId), $sessions, self::CACHE_TTL);
     }
 

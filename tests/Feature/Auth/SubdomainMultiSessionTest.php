@@ -3,6 +3,7 @@
 namespace Tests\Feature\Auth;
 
 use App\Models\User;
+use App\Providers\RouteServiceProvider;
 use App\Services\SubdomainSessionManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
@@ -202,5 +203,43 @@ class SubdomainMultiSessionTest extends TestCase
 
         $response->assertRedirect("http://{$slug}.localhost:8088/login");
         $this->assertFalse(auth()->check());
+    }
+
+    public function test_login_after_logout_when_multi_session_disabled_does_not_get_signed_out(): void
+    {
+        $deviceId = 'device_test_login_after_logout';
+        $user = User::factory()->create();
+
+        // 1. User logs in
+        $loginRes = $this->withUnencryptedCookies(['pm_device_id' => $deviceId])
+            ->post('http://localhost:8088/login', [
+                'email' => $user->email,
+                'password' => 'password',
+            ]);
+        $loginRes->assertRedirect(RouteServiceProvider::HOME);
+        $this->assertAuthenticatedAs($user);
+
+        // 2. User logs out
+        $logoutRes = $this->withUnencryptedCookies(['pm_device_id' => $deviceId])
+            ->actingAs($user)
+            ->post('http://localhost:8088/logout');
+        $this->assertGuest();
+
+        // 3. User logs in again
+        $reLoginRes = $this->withUnencryptedCookies(['pm_device_id' => $deviceId])
+            ->post('http://localhost:8088/login', [
+                'email' => $user->email,
+                'password' => 'password',
+            ]);
+        $reLoginRes->assertRedirect(RouteServiceProvider::HOME);
+        $this->assertAuthenticatedAs($user);
+
+        // 4. Request dashboard
+        $dashRes = $this->withUnencryptedCookies(['pm_device_id' => $deviceId])
+            ->actingAs($user)
+            ->get('http://localhost:8088/dashboard');
+
+        $dashRes->assertOk();
+        $this->assertAuthenticatedAs($user);
     }
 }

@@ -59,26 +59,29 @@ class IdentifySubdomainSession
 
         // If authenticated, check if this session was revoked or terminated
         if (Auth::check()) {
-            $loginTime = $request->session()->get('subdomain_session_time');
-            if ($loginTime === null) {
-                $loginTime = time();
-                $request->session()->put('subdomain_session_time', $loginTime);
-            }
-
-            if ($this->manager->isSessionRevoked($deviceId, $slug, $loginTime)) {
-                Auth::guard('web')->logout();
-                $request->session()->invalidate();
-                $request->session()->regenerateToken();
-
-                if ($request->expectsJson() && ! $request->header('X-Inertia')) {
-                    return response()->json(['message' => 'This session has been signed out.', 'status' => 'session_terminated'], 401);
+            if ($slug !== 'primary' || $this->manager->isMultiSessionEnabled($deviceId)) {
+                $loginTime = $request->session()->get('subdomain_session_time');
+                if ($loginTime === null) {
+                    $loginTime = time();
+                    $request->session()->put('subdomain_session_time', $loginTime);
+                    $this->manager->clearSessionTermination($deviceId, $slug);
                 }
 
-                return redirect()->route('login')->with('status', 'This session has been signed out.');
-            }
+                if ($this->manager->isSessionRevoked($deviceId, $slug, $loginTime)) {
+                    Auth::guard('web')->logout();
+                    $request->session()->invalidate();
+                    $request->session()->regenerateToken();
 
-            $this->manager->registerSession($deviceId, $slug, Auth::user(), $request->getHttpHost());
-            $request->session()->put('subdomain_registered', true);
+                    if ($request->expectsJson() && ! $request->header('X-Inertia')) {
+                        return response()->json(['message' => 'This session has been signed out.', 'status' => 'session_terminated'], 401);
+                    }
+
+                    return redirect()->route('login')->with('status', 'This session has been signed out.');
+                }
+
+                $this->manager->registerSession($deviceId, $slug, Auth::user(), $request->getHttpHost());
+                $request->session()->put('subdomain_registered', true);
+            }
         }
 
         $response = $next($request);
