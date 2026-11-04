@@ -71,6 +71,8 @@ Route::middleware('auth')->group(function () {
         ->name('auth.social.unlink');
     Route::prefix('auth/multi-session')->name('auth.multi-session.')->group(function () {
         Route::post('create', [SubdomainMultiSessionController::class, 'create'])->name('create');
+        Route::post('enable', [SubdomainMultiSessionController::class, 'enable'])->name('enable');
+        Route::post('disable', [SubdomainMultiSessionController::class, 'disable'])->name('disable');
         Route::post('terminate', [SubdomainMultiSessionController::class, 'terminate'])->name('terminate');
         Route::post('terminate-all', [SubdomainMultiSessionController::class, 'terminateAll'])->name('terminate-all');
     });

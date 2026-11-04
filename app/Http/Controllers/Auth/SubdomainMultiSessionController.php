@@ -22,6 +22,12 @@ class SubdomainMultiSessionController extends Controller
     {
         $deviceId = (string) ($request->attributes->get('device_id') ?? $request->cookie(IdentifySubdomainSession::DEVICE_COOKIE, ''));
 
+        if (! $this->manager->isMultiSessionEnabled($deviceId)) {
+            return response()->json([
+                'message' => 'Multi-session is currently disabled. Please enable it first.',
+            ], 403);
+        }
+
         if ($this->manager->isAtSessionLimit($deviceId)) {
             return response()->json([
                 'message' => 'Maximum of 5 active sessions reached. Please close a session first.',
@@ -37,6 +43,44 @@ class SubdomainMultiSessionController extends Controller
             'slug' => $slug,
             'url' => $targetUrl,
         ]);
+    }
+
+    /**
+     * Enable multi-session feature on this device.
+     */
+    public function enable(Request $request): JsonResponse|RedirectResponse
+    {
+        $deviceId = (string) ($request->attributes->get('device_id') ?? $request->cookie(IdentifySubdomainSession::DEVICE_COOKIE, ''));
+
+        $this->manager->enableMultiSession($deviceId);
+
+        if ($request->wantsJson()) {
+            return response()->json(['status' => 'enabled', 'multiSessionEnabled' => true]);
+        }
+
+        return back();
+    }
+
+    /**
+     * Disable multi-session feature on this device and revoke all active sessions.
+     */
+    public function disable(Request $request): JsonResponse|RedirectResponse
+    {
+        $deviceId = (string) ($request->attributes->get('device_id') ?? $request->cookie(IdentifySubdomainSession::DEVICE_COOKIE, ''));
+
+        $this->manager->disableMultiSession($deviceId);
+
+        Auth::guard('web')->logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        $rootLoginUrl = (new IdentifySubdomainSession($this->manager))->buildRootUrl($request, '/login');
+
+        if ($request->wantsJson()) {
+            return response()->json(['status' => 'disabled', 'redirect_url' => $rootLoginUrl]);
+        }
+
+        return redirect()->away($rootLoginUrl)->with('status', 'Multi-session disabled. All sessions have been logged out.');
     }
 
     /**

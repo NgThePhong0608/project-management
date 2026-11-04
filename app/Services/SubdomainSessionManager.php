@@ -14,7 +14,34 @@ class SubdomainSessionManager
 
     public const REVOCATION_PREFIX = 'device_revoked_all:';
 
+    public const ENABLED_PREFIX = 'multi_session_enabled:';
+
     public const CACHE_TTL = 86400 * 7; // 7 days
+
+    /**
+     * Check if multi-session feature is currently enabled for this device.
+     */
+    public function isMultiSessionEnabled(string $deviceId): bool
+    {
+        return (bool) $this->cache()->get(self::ENABLED_PREFIX.$deviceId, false);
+    }
+
+    /**
+     * Enable multi-session feature for this device.
+     */
+    public function enableMultiSession(string $deviceId): void
+    {
+        $this->cache()->put(self::ENABLED_PREFIX.$deviceId, true, self::CACHE_TTL);
+    }
+
+    /**
+     * Disable multi-session feature for this device and revoke all existing sessions.
+     */
+    public function disableMultiSession(string $deviceId): void
+    {
+        $this->terminateAllSessions($deviceId);
+        $this->cache()->put(self::ENABLED_PREFIX.$deviceId, false, self::CACHE_TTL);
+    }
 
     /**
      * Generate a unique subdomain slug for a user, e.g. 1001-a1b2

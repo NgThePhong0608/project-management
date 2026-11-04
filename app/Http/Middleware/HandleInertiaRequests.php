@@ -44,6 +44,7 @@ class HandleInertiaRequests extends Middleware
                 'user' => $user,
                 'deviceId' => $deviceId,
                 'subdomainSlug' => $request->attributes->get('subdomain_slug'),
+                'multiSessionEnabled' => $deviceId ? $manager->isMultiSessionEnabled($deviceId) : false,
                 'activeSubdomainSessions' => $activeSessions,
                 'maxSubdomainSessions' => SubdomainSessionManager::MAX_SESSIONS,
                 'unreadNotificationsCount' => $user ? $user->unreadNotifications()->count() : 0,

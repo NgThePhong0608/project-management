@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { Link, router } from "@inertiajs/react";
 import Dropdown from "@/Components/Dropdown";
+import Modal from "@/Components/Modal";
+import DangerButton from "@/Components/DangerButton";
+import SecondaryButton from "@/Components/SecondaryButton";
 import axios from "axios";
 
 export default function SubdomainAccountSwitcher({ auth }) {
@@ -8,12 +11,45 @@ export default function SubdomainAccountSwitcher({ auth }) {
   const currentSlug = auth?.subdomainSlug;
   const activeSessions = auth?.activeSubdomainSessions || [];
   const maxSessions = auth?.maxSubdomainSessions || 5;
+  const isMultiSessionEnabled = auth?.multiSessionEnabled ?? false;
 
   const otherSessions = activeSessions.filter((s) => s.slug !== currentSlug);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [confirmingDisable, setConfirmingDisable] = useState(false);
+  const [disabling, setDisabling] = useState(false);
+
+  const handleEnableMultiSession = async () => {
+    setLoading(true);
+    setErrorMsg("");
+    try {
+      await axios.post(route("auth.multi-session.enable"));
+      router.reload();
+    } catch (err) {
+      setErrorMsg(
+        err.response?.data?.message || "Failed to enable multi-session.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirmDisable = async () => {
+    setDisabling(true);
+    try {
+      const res = await axios.post(route("auth.multi-session.disable"));
+      window.location.href = res.data?.redirect_url || route("login");
+    } catch {
+      window.location.href = route("login");
+    }
+  };
 
   const handleCreateSession = async () => {
+    if (!isMultiSessionEnabled) {
+      setErrorMsg("Please enable multi-session mode first.");
+      return;
+    }
+
     if (activeSessions.length >= maxSessions) {
       setErrorMsg("Maximum 5 sessions reached. Close an active session first.");
       return;
@@ -146,18 +182,52 @@ export default function SubdomainAccountSwitcher({ auth }) {
             Profile Settings
           </Dropdown.Link>
 
-          {/* Active Sessions Quota Badge */}
-          <div className="border-t border-gray-100 dark:border-gray-700 px-4 py-2 flex items-center justify-between bg-gray-50/50 dark:bg-gray-900/20">
-            <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
-              Active Browser Sessions
-            </span>
-            <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 font-mono">
-              {Math.min(activeSessions.length, maxSessions)} / {maxSessions}
-            </span>
+          {/* Multi-Session Mode Toggle & Quota */}
+          <div className="border-t border-gray-100 dark:border-gray-700 px-4 py-2.5 bg-gray-50/50 dark:bg-gray-900/20">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-1.5">
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    isMultiSessionEnabled
+                      ? "bg-green-500 animate-pulse"
+                      : "bg-gray-400"
+                  }`}
+                />
+                <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+                  Multi-Session Mode
+                </span>
+              </div>
+              <span className="text-[11px] font-mono text-gray-500 dark:text-gray-400">
+                {isMultiSessionEnabled
+                  ? `${Math.min(activeSessions.length, maxSessions)} / ${maxSessions}`
+                  : "Off"}
+              </span>
+            </div>
+
+            <div className="mt-2 flex items-center justify-between">
+              {isMultiSessionEnabled ? (
+                <button
+                  type="button"
+                  onClick={() => setConfirmingDisable(true)}
+                  className="text-xs text-red-600 dark:text-red-400 hover:underline font-medium"
+                >
+                  Turn OFF Multi-Session
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleEnableMultiSession}
+                  disabled={loading}
+                  className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
+                >
+                  {loading ? "Enabling..." : "Turn ON Multi-Session"}
+                </button>
+              )}
+            </div>
           </div>
 
-          {/* Other Active Subdomain Sessions */}
-          {otherSessions.length > 0 && (
+          {/* Other Active Subdomain Sessions (Only if enabled) */}
+          {isMultiSessionEnabled && otherSessions.length > 0 && (
             <div className="border-t border-gray-100 dark:border-gray-700 py-1">
               <div className="px-4 py-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
                 Switch Subdomain Session
@@ -200,43 +270,45 @@ export default function SubdomainAccountSwitcher({ auth }) {
             </div>
           )}
 
-          {/* Add Another Session (Subdomain) */}
-          <div className="border-t border-gray-100 dark:border-gray-700 py-1.5 px-3">
-            {errorMsg && (
-              <p className="text-xs text-red-600 dark:text-red-400 mb-1 px-1">
-                {errorMsg}
-              </p>
-            )}
-            <button
-              type="button"
-              disabled={loading || activeSessions.length >= maxSessions}
-              onClick={handleCreateSession}
-              className={`w-full text-left px-3 py-1.5 text-sm rounded flex items-center justify-between transition duration-150 ${
-                activeSessions.length >= maxSessions
-                  ? "text-gray-400 dark:text-gray-500 cursor-not-allowed bg-gray-50 dark:bg-gray-800"
-                  : "text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
-              }`}
-            >
-              <div className="flex items-center space-x-2">
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M12 4v16m8-8H4"
-                  />
-                </svg>
-                <span>
-                  {loading ? "Allocating session..." : "Add another account"}
-                </span>
-              </div>
-            </button>
-          </div>
+          {/* Add Another Session (Subdomain) (Only if enabled) */}
+          {isMultiSessionEnabled && (
+            <div className="border-t border-gray-100 dark:border-gray-700 py-1.5 px-3">
+              {errorMsg && (
+                <p className="text-xs text-red-600 dark:text-red-400 mb-1 px-1">
+                  {errorMsg}
+                </p>
+              )}
+              <button
+                type="button"
+                disabled={loading || activeSessions.length >= maxSessions}
+                onClick={handleCreateSession}
+                className={`w-full text-left px-3 py-1.5 text-sm rounded flex items-center justify-between transition duration-150 ${
+                  activeSessions.length >= maxSessions
+                    ? "text-gray-400 dark:text-gray-500 cursor-not-allowed bg-gray-50 dark:bg-gray-800"
+                    : "text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
+                }`}
+              >
+                <div className="flex items-center space-x-2">
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M12 4v16m8-8H4"
+                    />
+                  </svg>
+                  <span>
+                    {loading ? "Allocating session..." : "Add another account"}
+                  </span>
+                </div>
+              </button>
+            </div>
+          )}
 
           {/* Logout Actions */}
           <div className="border-t border-gray-100 dark:border-gray-700 py-1">
@@ -248,19 +320,54 @@ export default function SubdomainAccountSwitcher({ auth }) {
             >
               Sign out of this session
             </Dropdown.Link>
-            <button
-              type="button"
-              onClick={handleTerminateAll}
-              className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition duration-150 font-medium flex items-center justify-between"
-            >
-              <span>Sign out of all sessions</span>
-              <span className="text-xs bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 font-mono px-1.5 py-0.5 rounded">
-                {activeSessions.length}
-              </span>
-            </button>
+            {isMultiSessionEnabled && (
+              <button
+                type="button"
+                onClick={handleTerminateAll}
+                className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition duration-150 font-medium flex items-center justify-between"
+              >
+                <span>Sign out of all sessions</span>
+                <span className="text-xs bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 font-mono px-1.5 py-0.5 rounded">
+                  {activeSessions.length}
+                </span>
+              </button>
+            )}
           </div>
         </Dropdown.Content>
       </Dropdown>
+
+      {/* Confirmation Modal for Disabling Multi-Session */}
+      <Modal
+        show={confirmingDisable}
+        onClose={() => !disabling && setConfirmingDisable(false)}
+      >
+        <div className="p-6">
+          <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">
+            Disable Multi-Session Mode?
+          </h2>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+            Disabling multi-session will immediately sign out all active
+            sessions ({activeSessions.length}) across all tabs on this browser.
+          </p>
+          <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md">
+            <p className="text-xs text-amber-800 dark:text-amber-300 font-medium flex items-center">
+              <span className="mr-1">⚠️</span> Warning: Any unsaved form inputs
+              or ongoing tasks in other open tabs will be lost.
+            </p>
+          </div>
+          <div className="mt-6 flex justify-end space-x-3">
+            <SecondaryButton
+              onClick={() => setConfirmingDisable(false)}
+              disabled={disabling}
+            >
+              Cancel
+            </SecondaryButton>
+            <DangerButton onClick={handleConfirmDisable} disabled={disabling}>
+              {disabling ? "Disabling..." : "Disable & Sign Out All"}
+            </DangerButton>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

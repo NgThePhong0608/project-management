@@ -18,12 +18,63 @@ class SubdomainMultiSessionTest extends TestCase
         Cache::flush();
     }
 
-    public function test_can_create_new_session_subdomain(): void
+    public function test_cannot_create_when_multi_session_is_disabled(): void
     {
-        $deviceId = 'device_test_create';
+        $deviceId = 'device_test_disabled';
         $user = User::factory()->create();
 
         $response = $this->withCookies(['pm_device_id' => $deviceId])
+            ->actingAs($user)
+            ->post('http://localhost:8088/auth/multi-session/create');
+
+        $response->assertStatus(403);
+    }
+
+    public function test_can_enable_and_disable_multi_session(): void
+    {
+        $deviceId = 'device_test_toggle';
+        $manager = app(SubdomainSessionManager::class);
+        $user = User::factory()->create();
+
+        // 1. Enable
+        $response = $this->withUnencryptedCookies(['pm_device_id' => $deviceId])
+            ->actingAs($user)
+            ->post('http://localhost:8088/auth/multi-session/enable', [], ['Accept' => 'application/json']);
+
+        $response->assertOk();
+        $this->assertTrue($manager->isMultiSessionEnabled($deviceId));
+
+        // 2. Disable
+        $response = $this->withUnencryptedCookies(['pm_device_id' => $deviceId])
+            ->actingAs($user)
+            ->post('http://localhost:8088/auth/multi-session/disable');
+
+        $response->assertRedirect('http://localhost:8088/login');
+        $this->assertFalse($manager->isMultiSessionEnabled($deviceId));
+        $this->assertFalse(auth()->check());
+    }
+
+    public function test_subdomain_request_rejected_when_multi_session_disabled(): void
+    {
+        $deviceId = 'device_test_subdomain_rejected';
+        $user = User::factory()->create();
+
+        // Multi-session is disabled by default
+        $response = $this->withUnencryptedCookies(['pm_device_id' => $deviceId])
+            ->actingAs($user)
+            ->get('http://sess-1234.localhost:8088/dashboard');
+
+        $response->assertRedirect('http://localhost:8088/login');
+    }
+
+    public function test_can_create_new_session_subdomain(): void
+    {
+        $deviceId = 'device_test_create';
+        $manager = app(SubdomainSessionManager::class);
+        $manager->enableMultiSession($deviceId);
+        $user = User::factory()->create();
+
+        $response = $this->withUnencryptedCookies(['pm_device_id' => $deviceId])
             ->actingAs($user)
             ->post('http://localhost:8088/auth/multi-session/create');
 
@@ -36,6 +87,7 @@ class SubdomainMultiSessionTest extends TestCase
     {
         $deviceId = 'device_test_limit';
         $manager = app(SubdomainSessionManager::class);
+        $manager->enableMultiSession($deviceId);
 
         // Pre-fill 5 sessions
         for ($i = 0; $i < 5; $i++) {
@@ -94,6 +146,7 @@ class SubdomainMultiSessionTest extends TestCase
     {
         $deviceId = 'device_test_auto_logout';
         $manager = app(SubdomainSessionManager::class);
+        $manager->enableMultiSession($deviceId);
         $user = User::factory()->create();
         $slug = $manager->generateSlug($user);
 

@@ -40,6 +40,23 @@ class IdentifySubdomainSession
         $request->attributes->set('subdomain_slug', $slug);
         $request->attributes->set('device_id', $deviceId);
 
+        // If request is on a session subdomain but multi-session is disabled, revoke & redirect to root
+        if ($slug !== 'primary' && ! $this->manager->isMultiSessionEnabled($deviceId)) {
+            if (Auth::check()) {
+                Auth::guard('web')->logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+            }
+
+            if ($request->expectsJson() && ! $request->header('X-Inertia')) {
+                return response()->json(['message' => 'Multi-session is disabled on this device.', 'status' => 'multi_session_disabled'], 401);
+            }
+
+            $rootLoginUrl = $this->buildRootUrl($request, '/login');
+
+            return redirect()->away($rootLoginUrl)->with('status', 'Multi-session has been disabled. Please log in on the main domain.');
+        }
+
         // If authenticated, check if this session was revoked or terminated
         if (Auth::check()) {
             $loginTime = $request->session()->get('subdomain_session_time');
@@ -52,6 +69,10 @@ class IdentifySubdomainSession
                 Auth::guard('web')->logout();
                 $request->session()->invalidate();
                 $request->session()->regenerateToken();
+
+                if ($request->expectsJson() && ! $request->header('X-Inertia')) {
+                    return response()->json(['message' => 'This session has been signed out.', 'status' => 'session_terminated'], 401);
+                }
 
                 return redirect()->route('login')->with('status', 'This session has been signed out.');
             }
@@ -95,6 +116,26 @@ class IdentifySubdomainSession
         }
 
         return null;
+    }
+
+    /**
+     * Build root URL without subdomain slug.
+     */
+    public function buildRootUrl(Request $request, string $path = '/'): string
+    {
+        $scheme = $request->getScheme();
+        $port = $request->getPort();
+        $host = explode(':', $request->getHost())[0];
+
+        if (preg_match('/^[a-z0-9]+-[a-z0-9]+\.(.+)$/i', $host, $matches)) {
+            $baseHost = $matches[1];
+        } else {
+            $baseHost = $host;
+        }
+
+        $portSuffix = ($port && ! in_array($port, [80, 443])) ? ":{$port}" : '';
+
+        return "{$scheme}://{$baseHost}{$portSuffix}{$path}";
     }
 
     /**

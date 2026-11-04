@@ -362,6 +362,26 @@ export default function Authenticated({ user, header, children }) {
                 </div>
               )}
 
+              {auth?.multiSessionEnabled ? (
+                <ResponsiveNavLink
+                  method="post"
+                  href={route("auth.multi-session.disable")}
+                  as="button"
+                  className="text-amber-600 dark:text-amber-400 font-medium"
+                >
+                  Disable Multi-Session Mode
+                </ResponsiveNavLink>
+              ) : (
+                <ResponsiveNavLink
+                  method="post"
+                  href={route("auth.multi-session.enable")}
+                  as="button"
+                  className="text-indigo-600 dark:text-indigo-400 font-medium"
+                >
+                  Enable Multi-Session Mode
+                </ResponsiveNavLink>
+              )}
+
               <ResponsiveNavLink
                 method="post"
                 href={route("logout")}

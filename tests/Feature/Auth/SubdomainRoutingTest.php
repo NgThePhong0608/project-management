@@ -31,6 +31,7 @@ class SubdomainRoutingTest extends TestCase
         $user1 = User::factory()->create(['name' => 'Alice Admin', 'role' => 'admin']);
 
         $manager = app(SubdomainSessionManager::class);
+        $manager->enableMultiSession($deviceId);
         $slug = $manager->generateSlug($user1);
         $manager->registerSession($deviceId, $slug, $user1, "{$slug}.localhost");
 
