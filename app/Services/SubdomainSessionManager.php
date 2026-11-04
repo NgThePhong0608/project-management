@@ -16,7 +16,32 @@ class SubdomainSessionManager
 
     public const ENABLED_PREFIX = 'multi_session_enabled:';
 
+    public const TRANSFER_PREFIX = 'session_transfer:';
+
+    public const TRANSFER_TTL = 60; // 60 seconds
+
     public const CACHE_TTL = 86400 * 7; // 7 days
+
+    /**
+     * Create a single-use authenticated transfer token for cross-subdomain handover.
+     */
+    public function createTransferToken(string $deviceId): string
+    {
+        $token = Str::random(40);
+        $this->cache()->put(self::TRANSFER_PREFIX.$token, $deviceId, self::TRANSFER_TTL);
+
+        return $token;
+    }
+
+    /**
+     * Consume an authenticated transfer token and return the associated device ID.
+     */
+    public function consumeTransferToken(string $token): ?string
+    {
+        $deviceId = $this->cache()->pull(self::TRANSFER_PREFIX.$token);
+
+        return is_string($deviceId) && ! empty($deviceId) ? $deviceId : null;
+    }
 
     /**
      * Check if multi-session feature is currently enabled for this device.
@@ -98,10 +123,10 @@ class SubdomainSessionManager
     /**
      * Check if a session was revoked either via terminate-all or individual termination.
      */
-    public function isSessionRevoked(string $deviceId, string $slug, ?int $loginTime = null): bool
+    public function isSessionRevoked(string $deviceId, string $slug, float|int|null $loginTime = null): bool
     {
         $revokedAllAt = $this->cache()->get(self::REVOCATION_PREFIX.$deviceId);
-        if ($revokedAllAt !== null && $loginTime !== null && $loginTime <= (int) $revokedAllAt) {
+        if ($revokedAllAt !== null && $loginTime !== null && (float) $loginTime <= (float) $revokedAllAt) {
             return true;
         }
 
@@ -110,7 +135,7 @@ class SubdomainSessionManager
             if ($terminatedAt === true) {
                 return true;
             }
-            if ($loginTime !== null && $loginTime <= (int) $terminatedAt) {
+            if ($loginTime !== null && (float) $loginTime <= (float) $terminatedAt) {
                 return true;
             }
         }
@@ -180,7 +205,7 @@ class SubdomainSessionManager
         $sessions = $this->getActiveSessions($deviceId);
         unset($sessions[$slug]);
 
-        $this->cache()->put("terminated_session:{$deviceId}:{$slug}", time(), self::CACHE_TTL);
+        $this->cache()->put("terminated_session:{$deviceId}:{$slug}", microtime(true), self::CACHE_TTL);
         $this->cache()->put($this->getCacheKey($deviceId), $sessions, self::CACHE_TTL);
     }
 
@@ -189,7 +214,7 @@ class SubdomainSessionManager
      */
     public function terminateAllSessions(string $deviceId): void
     {
-        $this->cache()->put(self::REVOCATION_PREFIX.$deviceId, time(), self::CACHE_TTL);
+        $this->cache()->put(self::REVOCATION_PREFIX.$deviceId, microtime(true), self::CACHE_TTL);
         $this->cache()->forget($this->getCacheKey($deviceId));
     }
 }

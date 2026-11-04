@@ -37,7 +37,8 @@ class SubdomainMultiSessionController extends Controller
         // Generate temporary slug for new account authentication
         $slug = 'sess-'.Str::lower(Str::random(6));
 
-        $targetUrl = $this->buildSubdomainUrl($request, $slug, '/login?device_id='.$deviceId);
+        $transferToken = $this->manager->createTransferToken($deviceId);
+        $targetUrl = $this->buildSubdomainUrl($request, $slug, '/login?session_transfer='.$transferToken);
 
         return response()->json([
             'slug' => $slug,

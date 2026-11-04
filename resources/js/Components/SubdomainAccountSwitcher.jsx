@@ -244,7 +244,7 @@ export default function SubdomainAccountSwitcher({ auth }) {
                   <a
                     href={
                       s.host
-                        ? `${window.location.protocol}//${s.host}/dashboard${auth?.deviceId ? `?device_id=${encodeURIComponent(auth.deviceId)}` : ""}`
+                        ? `${window.location.protocol}//${s.host}/dashboard`
                         : "#"
                     }
                     className="flex-1 truncate mr-2"

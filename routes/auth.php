@@ -83,3 +83,6 @@ Route::get('auth/{provider}/redirect', [SocialiteController::class, 'redirect'])
 
 Route::get('auth/{provider}/callback', [SocialiteController::class, 'callback'])
     ->name('auth.social.callback');
+
+Route::get('auth/oauth-handoff', [SocialiteController::class, 'handoff'])
+    ->name('auth.social.handoff');

@@ -3,14 +3,18 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Middleware\IdentifySubdomainSession;
 use App\Models\LoginHistory;
 use App\Models\OAuthAccount;
 use App\Models\User;
 use App\Providers\RouteServiceProvider;
+use App\Services\SubdomainSessionManager;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
 use Throwable;
 
@@ -45,7 +49,7 @@ class SocialiteController extends Controller
     /**
      * Redirect to the OAuth provider.
      */
-    public function redirect(string $provider): RedirectResponse
+    public function redirect(string $provider, Request $request): RedirectResponse
     {
         if (! array_key_exists($provider, $this->providers)) {
             abort(404);
@@ -64,7 +68,25 @@ class SocialiteController extends Controller
             $driver->with($promptParams);
         }
 
-        return $driver->redirect();
+        $redirectResponse = $driver->redirect();
+
+        $slug = $request->attributes->get('subdomain_slug');
+        if ($slug && $slug !== 'primary') {
+            $targetUrl = $redirectResponse->getTargetUrl();
+            parse_str(parse_url($targetUrl, PHP_URL_QUERY) ?? '', $query);
+            $state = $query['state'] ?? null;
+            if ($state) {
+                $deviceId = (string) ($request->attributes->get('device_id') ?? $request->cookie(IdentifySubdomainSession::DEVICE_COOKIE, ''));
+                Cache::put("oauth_handoff:{$state}", [
+                    'slug' => $slug,
+                    'host' => $request->getHttpHost(),
+                    'device_id' => $deviceId,
+                    'scheme' => $request->getScheme(),
+                ], 600); // 10 minutes
+            }
+        }
+
+        return $redirectResponse;
     }
 
     /**
@@ -76,8 +98,12 @@ class SocialiteController extends Controller
             abort(404);
         }
 
+        $state = $request->query('state');
+        $handoff = $state ? Cache::pull("oauth_handoff:{$state}") : null;
+
         try {
-            $socialUser = $this->getDriver($provider)->user();
+            $driver = $this->getDriver($provider);
+            $socialUser = $handoff ? $driver->stateless()->user() : $driver->user();
         } catch (Throwable $e) {
             Log::warning("OAuth login failed for provider [{$provider}]: ".$e->getMessage());
 
@@ -175,6 +201,22 @@ class SocialiteController extends Controller
             ]);
         }
 
+        // If initiating request came from a subdomain session host, hand off authentication
+        if ($handoff) {
+            $handoffToken = Str::random(40);
+            Cache::put("oauth_auth_handoff:{$handoffToken}", [
+                'user_id' => $user->id,
+                'has_mfa' => (bool) $user->has_mfa,
+                'slug' => $handoff['slug'],
+                'device_id' => $handoff['device_id'],
+            ], 120);
+
+            $scheme = $handoff['scheme'] ?? $request->getScheme();
+            $handoffUrl = "{$scheme}://{$handoff['host']}/auth/oauth-handoff?token={$handoffToken}";
+
+            return redirect()->away($handoffUrl);
+        }
+
         // Security check: Two-Factor Authentication
         if ($user->has_mfa) {
             $request->session()->put('login.two_factor_user_id', $user->id);
@@ -186,6 +228,66 @@ class SocialiteController extends Controller
 
         $request->session()->regenerate();
         $request->session()->put('last_activity_time', time());
+        $request->session()->put('subdomain_session_time', microtime(true));
+
+        $deviceId = (string) ($request->attributes->get('device_id') ?? $request->cookie(IdentifySubdomainSession::DEVICE_COOKIE, ''));
+        $slug = (string) ($request->attributes->get('subdomain_slug') ?? 'primary');
+        if ($deviceId) {
+            app(SubdomainSessionManager::class)->clearSessionTermination($deviceId, $slug);
+        }
+
+        LoginHistory::record($user, 'social_login', $request);
+
+        return redirect()->intended(RouteServiceProvider::HOME);
+    }
+
+    /**
+     * Authenticate on the initiating subdomain host via single-use handoff token.
+     */
+    public function handoff(Request $request): RedirectResponse
+    {
+        $token = $request->query('token');
+        if (! $token || ! is_string($token)) {
+            return redirect()->route('login')->with([
+                'status' => 'Invalid or expired authentication handoff.',
+                'status_type' => 'error',
+            ]);
+        }
+
+        $payload = Cache::pull("oauth_auth_handoff:{$token}");
+        if (! $payload || ! isset($payload['user_id'])) {
+            return redirect()->route('login')->with([
+                'status' => 'Authentication handoff has expired. Please try signing in again.',
+                'status_type' => 'error',
+            ]);
+        }
+
+        $currentSlug = $request->attributes->get('subdomain_slug');
+        if ($currentSlug !== ($payload['slug'] ?? '')) {
+            return redirect()->route('login')->with([
+                'status' => 'Session mismatch during handoff.',
+                'status_type' => 'error',
+            ]);
+        }
+
+        $user = User::findOrFail($payload['user_id']);
+
+        if (! empty($payload['has_mfa']) && $user->has_mfa) {
+            $request->session()->put('login.two_factor_user_id', $user->id);
+
+            return redirect()->route('two-factor.challenge');
+        }
+
+        Auth::login($user, remember: true);
+
+        $request->session()->regenerate();
+        $request->session()->put('last_activity_time', time());
+        $request->session()->put('subdomain_session_time', microtime(true));
+
+        $deviceId = (string) ($request->attributes->get('device_id') ?? $payload['device_id'] ?? '');
+        if ($deviceId) {
+            app(SubdomainSessionManager::class)->clearSessionTermination($deviceId, $currentSlug);
+        }
 
         LoginHistory::record($user, 'social_login', $request);
 

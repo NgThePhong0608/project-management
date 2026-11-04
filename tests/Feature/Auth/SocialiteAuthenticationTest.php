@@ -4,6 +4,7 @@ namespace Tests\Feature\Auth;
 
 use App\Models\OAuthAccount;
 use App\Models\User;
+use App\Services\SubdomainSessionManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Socialite\Contracts\Provider;
 use Laravel\Socialite\Facades\Socialite;
@@ -253,6 +254,61 @@ class SocialiteAuthenticationTest extends TestCase
         $this->assertDatabaseHas('oauth_accounts', [
             'user_id' => $user->id,
             'provider' => 'github',
+        ]);
+    }
+
+    public function test_subdomain_oauth_handoff_authenticates_on_initiating_host(): void
+    {
+        $deviceId = 'device_test_oauth_sub';
+        $manager = app(SubdomainSessionManager::class);
+        $manager->enableMultiSession($deviceId);
+
+        // 1. Initiate OAuth on subdomain host
+        $redirectRes = $this->withUnencryptedCookies(['pm_device_id' => $deviceId])
+            ->get('http://sess-1234.localhost:8088/auth/github/redirect');
+        $redirectRes->assertStatus(302);
+
+        $targetUrl = $redirectRes->headers->get('Location');
+        parse_str(parse_url($targetUrl, PHP_URL_QUERY) ?? '', $query);
+        $state = $query['state'] ?? null;
+        $this->assertNotNull($state);
+
+        // 2. Mock Socialite driver
+        $mockSocialUser = new SocialiteUser;
+        $mockSocialUser->id = 'gh-sub-999';
+        $mockSocialUser->name = 'Subdomain Dev';
+        $mockSocialUser->nickname = 'subdev';
+        $mockSocialUser->email = 'subdev@example.com';
+        $mockSocialUser->avatar = 'https://github.com/avatar.png';
+        $mockSocialUser->token = 'mock_sub_token';
+
+        $mockProvider = Mockery::mock(Provider::class);
+        $mockProvider->shouldReceive('stateless')->once()->andReturnSelf();
+        $mockProvider->shouldReceive('user')->once()->andReturn($mockSocialUser);
+
+        Socialite::shouldReceive('driver')->with('github')->andReturn($mockProvider);
+
+        // 3. Callback hits primary host with pm_device_id
+        $callbackRes = $this->withUnencryptedCookies(['pm_device_id' => $deviceId])
+            ->get("http://localhost:8088/auth/github/callback?code=mock_code&state={$state}");
+        $callbackRes->assertStatus(302);
+
+        $handoffUrl = $callbackRes->headers->get('Location');
+        $this->assertStringContainsString('sess-1234.localhost:8088/auth/oauth-handoff?token=', $handoffUrl);
+
+        // Primary host must remain unauthenticated
+        $this->assertFalse(auth()->check());
+
+        // 4. Client completes handoff on the initiating subdomain host
+        $handoffRes = $this->withUnencryptedCookies(['pm_device_id' => $deviceId])
+            ->get($handoffUrl);
+        $handoffRes->assertRedirect(route('dashboard', absolute: false));
+        $this->assertTrue(auth()->check());
+        $this->assertEquals('subdev@example.com', auth()->user()->email);
+
+        $this->assertDatabaseHas('oauth_accounts', [
+            'provider' => 'github',
+            'provider_id' => 'gh-sub-999',
         ]);
     }
 }

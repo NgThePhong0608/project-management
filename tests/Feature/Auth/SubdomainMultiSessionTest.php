@@ -242,4 +242,91 @@ class SubdomainMultiSessionTest extends TestCase
         $dashRes->assertOk();
         $this->assertAuthenticatedAs($user);
     }
+
+    public function test_disabling_multi_session_from_subdomain_revokes_primary_host_session(): void
+    {
+        $deviceId = 'device_test_disable_revokes_primary';
+        $manager = app(SubdomainSessionManager::class);
+        $manager->enableMultiSession($deviceId);
+
+        $userPrimary = User::factory()->create();
+        $userSub = User::factory()->create();
+        $slugSub = $manager->generateSlug($userSub);
+
+        // Primary session active
+        $primaryLoginTime = microtime(true);
+        $manager->registerSession($deviceId, 'primary', $userPrimary);
+
+        // Subdomain session active
+        $manager->registerSession($deviceId, $slugSub, $userSub);
+
+        // Disable multi-session from subdomain host
+        $response = $this->withUnencryptedCookies(['pm_device_id' => $deviceId])
+            ->actingAs($userSub)
+            ->withSession(['subdomain_session_time' => $primaryLoginTime])
+            ->post("http://{$slugSub}.localhost:8088/auth/multi-session/disable");
+
+        $response->assertRedirect('http://localhost:8088/login');
+        $this->assertFalse($manager->isMultiSessionEnabled($deviceId));
+
+        // Primary host request must be revoked and signed out
+        $primaryReq = $this->withUnencryptedCookies(['pm_device_id' => $deviceId])
+            ->actingAs($userPrimary)
+            ->withSession(['subdomain_session_time' => $primaryLoginTime])
+            ->get('http://localhost:8088/dashboard');
+
+        $primaryReq->assertRedirect('http://localhost:8088/login');
+        $this->assertFalse(auth()->check());
+    }
+
+    public function test_guest_cannot_view_device_sessions_registry_in_inertia_props(): void
+    {
+        $deviceId = 'device_test_guest_leak';
+        $manager = app(SubdomainSessionManager::class);
+        $user = User::factory()->create(['email' => 'victim@example.com']);
+        $manager->registerSession($deviceId, 'primary', $user);
+
+        // Guest accesses login with device ID
+        $response = $this->withUnencryptedCookies(['pm_device_id' => $deviceId])
+            ->get('http://localhost:8088/login');
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page
+            ->where('auth.user', null)
+            ->where('auth.activeSubdomainSessions', [])
+            ->where('auth.activeSubdomainSessionsCount', 0)
+        );
+    }
+
+    public function test_raw_device_id_query_param_does_not_override_existing_cookie(): void
+    {
+        $victimDeviceId = 'dev_victim_safe';
+        $attackerDeviceId = 'dev_attacker_injected';
+
+        $user = User::factory()->create();
+
+        $response = $this->withUnencryptedCookies(['pm_device_id' => $victimDeviceId])
+            ->actingAs($user)
+            ->get("http://localhost:8088/dashboard?device_id={$attackerDeviceId}");
+
+        $response->assertOk();
+        // The resolved device ID stored in session must remain the victim's
+        $this->assertEquals($victimDeviceId, session('subdomain_device_id'));
+    }
+
+    public function test_authenticated_transfer_token_binds_device_id_and_is_single_use(): void
+    {
+        $trustedDeviceId = 'dev_trusted_transfer';
+        $manager = app(SubdomainSessionManager::class);
+        $manager->enableMultiSession($trustedDeviceId);
+        $token = $manager->createTransferToken($trustedDeviceId);
+
+        // First use: binds trusted device id
+        $response = $this->get("http://sess-abc1.localhost:8088/login?session_transfer={$token}");
+        $response->assertOk();
+        $this->assertEquals($trustedDeviceId, session('subdomain_device_id'));
+
+        // Second use: token is already consumed, should not reuse
+        $this->assertNull($manager->consumeTransferToken($token));
+    }
 }

@@ -21,15 +21,23 @@ class IdentifySubdomainSession
      */
     public function handle(Request $request, Closure $next): Response
     {
-        $deviceId = $request->query('device_id')
-            ?? $request->cookie(self::DEVICE_COOKIE)
-            ?? $request->session()->get('subdomain_device_id');
+        $transferToken = $request->query('session_transfer');
+        $authenticatedDeviceId = ($transferToken && is_string($transferToken))
+            ? $this->manager->consumeTransferToken($transferToken)
+            : null;
+
+        $cookieDeviceId = $request->cookie(self::DEVICE_COOKIE);
+        $sessionDeviceId = $request->session()->get('subdomain_device_id');
+
+        // Prefer existing authenticated cookie or session; use authenticated transfer token for initial handoff
+        $deviceId = $cookieDeviceId ?? $sessionDeviceId ?? $authenticatedDeviceId;
         $isNewDevice = false;
 
         if (! $deviceId) {
             $deviceId = 'dev_'.Str::random(24);
             $isNewDevice = true;
-        } elseif ($request->query('device_id') && $request->cookie(self::DEVICE_COOKIE) !== $deviceId) {
+        } elseif ($authenticatedDeviceId && $cookieDeviceId !== $authenticatedDeviceId) {
+            $deviceId = $authenticatedDeviceId;
             $isNewDevice = true;
         }
 
@@ -57,28 +65,28 @@ class IdentifySubdomainSession
             return redirect()->away($rootLoginUrl)->with('status', 'Multi-session has been disabled. Please log in on the main domain.');
         }
 
-        // If authenticated, check if this session was revoked or terminated
+        // If authenticated, check if this session was revoked or terminated independently of whether multi-session is enabled
         if (Auth::check()) {
-            if ($slug !== 'primary' || $this->manager->isMultiSessionEnabled($deviceId)) {
-                $loginTime = $request->session()->get('subdomain_session_time');
-                if ($loginTime === null) {
-                    $loginTime = time();
-                    $request->session()->put('subdomain_session_time', $loginTime);
-                    $this->manager->clearSessionTermination($deviceId, $slug);
+            $loginTime = $request->session()->get('subdomain_session_time');
+            if ($loginTime === null) {
+                $loginTime = microtime(true);
+                $request->session()->put('subdomain_session_time', $loginTime);
+                $this->manager->clearSessionTermination($deviceId, $slug);
+            }
+
+            if ($this->manager->isSessionRevoked($deviceId, $slug, (float) $loginTime)) {
+                Auth::guard('web')->logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+
+                if ($request->expectsJson() && ! $request->header('X-Inertia')) {
+                    return response()->json(['message' => 'This session has been signed out.', 'status' => 'session_terminated'], 401);
                 }
 
-                if ($this->manager->isSessionRevoked($deviceId, $slug, $loginTime)) {
-                    Auth::guard('web')->logout();
-                    $request->session()->invalidate();
-                    $request->session()->regenerateToken();
+                return redirect()->route('login')->with('status', 'This session has been signed out.');
+            }
 
-                    if ($request->expectsJson() && ! $request->header('X-Inertia')) {
-                        return response()->json(['message' => 'This session has been signed out.', 'status' => 'session_terminated'], 401);
-                    }
-
-                    return redirect()->route('login')->with('status', 'This session has been signed out.');
-                }
-
+            if ($this->manager->isMultiSessionEnabled($deviceId) || $slug !== 'primary') {
                 $this->manager->registerSession($deviceId, $slug, Auth::user(), $request->getHttpHost());
                 $request->session()->put('subdomain_registered', true);
             }
