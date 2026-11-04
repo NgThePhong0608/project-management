@@ -5,6 +5,7 @@ import InputLabel from "@/Components/InputLabel";
 import PrimaryButton from "@/Components/PrimaryButton";
 import TextInput from "@/Components/TextInput";
 import TurnstileWidget from "@/Components/TurnstileWidget";
+import SocialLoginButtons from "@/Components/SocialLoginButtons";
 import { Head, Link, useForm } from "@inertiajs/react";
 
 export default function Register() {
@@ -116,19 +117,26 @@ export default function Register() {
         />
         <InputError message={errors.cf_turnstile_response} className="mt-2" />
 
-        <div className="flex items-center justify-end mt-4">
-          <Link
-            href={route("login")}
-            className="underline text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800"
+        <div className="mt-5 flex justify-center">
+          <PrimaryButton
+            className="min-w-[120px] justify-center"
+            disabled={processing}
           >
-            Already registered?
-          </Link>
-
-          <PrimaryButton className="ms-4" disabled={processing}>
             Register
           </PrimaryButton>
         </div>
+
+        <div className="mt-4 flex flex-col items-start space-y-1.5 text-sm">
+          <Link
+            href={route("login")}
+            className="underline text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800"
+          >
+            Already registered? Log in
+          </Link>
+        </div>
       </form>
+
+      <SocialLoginButtons label="Or register with" />
     </GuestLayout>
   );
 }

@@ -104,6 +104,16 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(LoginHistory::class)->latest('occurred_at');
     }
 
+    public function oauthAccounts(): HasMany
+    {
+        return $this->hasMany(OAuthAccount::class);
+    }
+
+    public function hasConnectedProvider(string $provider): bool
+    {
+        return $this->oauthAccounts()->where('provider', $provider)->exists();
+    }
+
     public function conversations(): BelongsToMany
     {
         return $this->belongsToMany(Conversation::class)

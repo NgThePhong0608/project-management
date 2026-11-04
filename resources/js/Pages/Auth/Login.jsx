@@ -6,9 +6,10 @@ import InputLabel from "@/Components/InputLabel";
 import PrimaryButton from "@/Components/PrimaryButton";
 import TextInput from "@/Components/TextInput";
 import TurnstileWidget from "@/Components/TurnstileWidget";
+import SocialLoginButtons from "@/Components/SocialLoginButtons";
 import { Head, Link, useForm } from "@inertiajs/react";
 
-export default function Login({ status, canResetPassword }) {
+export default function Login({ status, statusType, canResetPassword }) {
   const [resetKey, setResetKey] = useState(0);
   const { data, setData, post, processing, errors, reset } = useForm({
     email: "",
@@ -41,10 +42,12 @@ export default function Login({ status, canResetPassword }) {
       {status && (
         <div
           className={`mb-4 rounded-lg p-3 font-medium text-sm border ${
-            status.toLowerCase().includes("expired") ||
-            status.toLowerCase().includes("inactivity")
-              ? "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800"
-              : "bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800"
+            statusType === "error"
+              ? "error-oauth bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800"
+              : status.toLowerCase().includes("expired") ||
+                  status.toLowerCase().includes("inactivity")
+                ? "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800"
+                : "bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800"
           }`}
         >
           {status}
@@ -104,21 +107,35 @@ export default function Login({ status, canResetPassword }) {
         />
         <InputError message={errors.cf_turnstile_response} className="mt-2" />
 
-        <div className="flex items-center justify-end mt-4">
+        <div className="mt-5 flex justify-center">
+          <PrimaryButton
+            className="min-w-[120px] justify-center"
+            disabled={processing}
+          >
+            Log in
+          </PrimaryButton>
+        </div>
+
+        <div className="mt-4 flex flex-col items-start space-y-1.5 text-sm">
           {canResetPassword && (
             <Link
               href={route("password.request")}
-              className="underline text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800"
+              className="underline text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800"
             >
               Forgot your password?
             </Link>
           )}
 
-          <PrimaryButton className="ms-4" disabled={processing}>
-            Log in
-          </PrimaryButton>
+          <Link
+            href={route("register")}
+            className="underline text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800"
+          >
+            Don't have an account? Register
+          </Link>
         </div>
       </form>
+
+      <SocialLoginButtons />
     </GuestLayout>
   );
 }
