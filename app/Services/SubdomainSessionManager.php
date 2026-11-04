@@ -93,11 +93,11 @@ class SubdomainSessionManager
     }
 
     /**
-     * Get cache store instance (array in testing environment, redis in dev/production).
+     * Get cache store instance based on application configuration.
      */
     protected function cache()
     {
-        return app()->environment('testing') ? Cache::store() : Cache::store('redis');
+        return Cache::store();
     }
 
     /**
