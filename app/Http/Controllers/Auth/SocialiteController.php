@@ -76,6 +76,10 @@ class SocialiteController extends Controller
             parse_str(parse_url($targetUrl, PHP_URL_QUERY) ?? '', $query);
             $state = $query['state'] ?? null;
             if ($state) {
+                // Generate a session nonce on the initiating subdomain host to prevent login CSRF
+                $handoffNonce = Str::random(40);
+                $request->session()->put('oauth_handoff_nonce', $handoffNonce);
+
                 // Cryptographically bind this handoff to the initiating browser
                 $browserBinding = hash_hmac('sha256', $state, (string) config('app.key'));
                 $deviceId = (string) ($request->attributes->get('device_id') ?? $request->cookie(IdentifySubdomainSession::DEVICE_COOKIE, ''));
@@ -83,6 +87,7 @@ class SocialiteController extends Controller
                 Cache::put("oauth_handoff:{$state}", [
                     'slug' => $slug,
                     'browser_binding' => $browserBinding,
+                    'nonce' => $handoffNonce,
                     'device_id' => $deviceId,
                 ], 600); // 10 minutes
 
@@ -239,6 +244,7 @@ class SocialiteController extends Controller
                 'user_id' => $user->id,
                 'has_mfa' => (bool) $user->has_mfa,
                 'slug' => $handoff['slug'],
+                'nonce' => $handoff['nonce'] ?? null,
                 'device_id' => $handoff['device_id'],
             ], 120);
 
@@ -296,6 +302,18 @@ class SocialiteController extends Controller
         if ($currentSlug !== ($payload['slug'] ?? '')) {
             return redirect()->away($this->buildSafeRootUrl('/login'))->with([
                 'status' => 'Session mismatch during handoff.',
+                'status_type' => 'error',
+            ]);
+        }
+
+        // Validate that the request session on this host contains the matching nonce generated at initiation (prevents Login CSRF)
+        $expectedNonce = $payload['nonce'] ?? null;
+        $sessionNonce = (string) $request->session()->pull('oauth_handoff_nonce');
+        if (! $expectedNonce || ! hash_equals($expectedNonce, $sessionNonce)) {
+            Log::warning("OAuth handoff nonce mismatch for slug [{$currentSlug}]: login CSRF attempt blocked.");
+
+            return redirect()->away($this->buildSafeRootUrl('/login'))->with([
+                'status' => 'Authentication handoff session mismatch. Please try signing in again.',
                 'status_type' => 'error',
             ]);
         }
