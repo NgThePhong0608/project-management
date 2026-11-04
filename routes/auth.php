@@ -69,7 +69,6 @@ Route::middleware('auth')->group(function () {
 
     Route::delete('auth/{provider}/unlink', [SocialiteController::class, 'unlink'])
         ->name('auth.social.unlink');
-
     Route::prefix('auth/multi-session')->name('auth.multi-session.')->group(function () {
         Route::post('create', [SubdomainMultiSessionController::class, 'create'])->name('create');
         Route::post('terminate', [SubdomainMultiSessionController::class, 'terminate'])->name('terminate');
