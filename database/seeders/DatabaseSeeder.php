@@ -3,8 +3,6 @@
 namespace Database\Seeders;
 
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-use App\Models\Project;
-use App\Models\Task;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 
@@ -60,24 +58,6 @@ class DatabaseSeeder extends Seeder
 
         $users = [$admin, $manager, $member, ...$extraMembers];
 
-        if (Project::count() === 0) {
-            for ($i = 0; $i < 10; $i++) {
-                $creator = $users[array_rand([$admin, $manager])];
-                $project = Project::factory()->create([
-                    'created_by' => $creator->id,
-                    'updated_by' => $creator->id,
-                ]);
-
-                for ($j = 0; $j < 5; $j++) {
-                    $assignedUser = $users[array_rand($users)];
-                    Task::factory()->create([
-                        'project_id' => $project->id,
-                        'created_by' => $creator->id,
-                        'updated_by' => $creator->id,
-                        'assigned_user_id' => $assignedUser->id,
-                    ]);
-                }
-            }
-        }
+        $this->call(RealisticDataSeeder::class);
     }
 }
