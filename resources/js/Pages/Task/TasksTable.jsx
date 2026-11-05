@@ -5,6 +5,7 @@ import Pagination from "@/Components/Pagination";
 import { TASK_STATUS_CLASS_MAP, TASK_STATUS_TEXT_MAP } from "@/constants.jsx";
 import TextInput from "@/Components/TextInput";
 import SelectInput from "@/Components/SelectInput";
+import { Button } from "@/Components/ui/button";
 
 const TasksTable = ({
   tasks,
@@ -67,10 +68,11 @@ const TasksTable = ({
     }
     router.delete(route("task.destroy", task.id));
   };
+
   return (
     <>
       {success && (
-        <div className="bg-emerald-500 py-2 px-4 text-white rounded mb-4">
+        <div className="bg-emerald-500/15 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 py-2.5 px-4 rounded-lg m-4 text-sm font-medium">
           {success}
         </div>
       )}
@@ -168,10 +170,12 @@ const TasksTable = ({
           <tbody>
             {tasks.data.map((task) => (
               <tr
-                className="bg-white border-b dark:bg-gray-800 dark:border-gray-700"
+                className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50/50 dark:hover:bg-gray-750 transition-colors"
                 key={task.id}
               >
-                <td className="px-3 py-2">{task.id}</td>
+                <td className="px-3 py-2 font-mono text-xs text-gray-500 dark:text-gray-400">
+                  #{task.id}
+                </td>
                 <td className="px-3 py-2">
                   {task.image_path ? (
                     <img
@@ -187,15 +191,27 @@ const TasksTable = ({
                   )}
                 </td>
                 {!hideProjectColumn && (
-                  <td className="px-3 py-2">{task.project.name}</td>
+                  <td className="px-3 py-2">
+                    <Link
+                      href={route("project.show", task.project.id)}
+                      className="text-gray-900 dark:text-gray-100 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium hover:underline"
+                    >
+                      {task.project.name}
+                    </Link>
+                  </td>
                 )}
-                <th className="px-3 py-2 text-gray-100 hover:underline">
-                  <Link href={route("task.show", task.id)}>{task.name}</Link>
+                <th className="px-3 py-2 text-left font-medium text-gray-900 dark:text-gray-100">
+                  <Link
+                    href={route("task.show", task.id)}
+                    className="hover:underline hover:text-indigo-600 dark:hover:text-indigo-400"
+                  >
+                    {task.name}
+                  </Link>
                 </th>
                 <td className="px-3 py-2">
                   <span
                     className={
-                      "px-2 py-1 rounded text-nowrap text-white " +
+                      "px-2.5 py-0.5 rounded-full text-xs font-semibold text-white " +
                       TASK_STATUS_CLASS_MAP[task.status]
                     }
                   >
@@ -258,25 +274,36 @@ const TasksTable = ({
                       )}
                   </div>
                 </td>
-                <td className="px-3 py-2 text-nowrap">{task.created_at}</td>
-                <td className="px-3 py-2 text-nowrap">{task.due_date}</td>
-                <td className="px-3 py-2">{task.createdBy.name}</td>
-                <td className="px-3 py-2 text-nowrap">
+                <td className="px-3 py-2 text-nowrap text-xs text-gray-500 dark:text-gray-400">
+                  {task.created_at}
+                </td>
+                <td className="px-3 py-2 text-nowrap text-xs text-gray-500 dark:text-gray-400 font-mono">
+                  {task.due_date}
+                </td>
+                <td className="px-3 py-2 text-xs text-gray-600 dark:text-gray-300">
+                  {task.createdBy.name}
+                </td>
+                <td className="px-3 py-2 text-nowrap text-right space-x-1.5">
                   {task.can?.update && (
-                    <Link
-                      href={route("task.edit", task.id)}
-                      className="font-medium text-blue-600 dark:text-blue-500 hover:underline mx-1"
-                    >
-                      Edit
+                    <Link href={route("task.edit", task.id)}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2.5 text-xs text-blue-600 dark:text-blue-400"
+                      >
+                        Edit
+                      </Button>
                     </Link>
                   )}
                   {task.can?.delete && (
-                    <button
-                      onClick={(e) => deleteTask(task)}
-                      className="font-medium text-red-600 dark:text-red-500 hover:underline mx-1"
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="h-7 px-2.5 text-xs"
+                      onClick={() => deleteTask(task)}
                     >
                       Delete
-                    </button>
+                    </Button>
                   )}
                 </td>
               </tr>
@@ -284,7 +311,9 @@ const TasksTable = ({
           </tbody>
         </table>
       </div>
-      <Pagination links={tasks.meta.links} />
+      <div className="p-4 border-t border-gray-100 dark:border-gray-800">
+        <Pagination links={tasks.meta.links} />
+      </div>
     </>
   );
 };

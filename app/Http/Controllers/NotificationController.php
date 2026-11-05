@@ -11,28 +11,59 @@ use Inertia\Response;
 class NotificationController extends Controller
 {
     /**
-     * Get recent notifications and unread count for the authenticated user.
+     * Get recent notifications and unread count for the authenticated user, or render the notifications page.
      */
-    public function index(Request $request): JsonResponse
+    public function index(Request $request): JsonResponse|Response
     {
         $user = $request->user();
 
-        $notifications = $user->notifications()
-            ->latest()
-            ->take(15)
-            ->get()
-            ->map(function ($notification) {
+        if ($request->wantsJson() && ! $request->header('X-Inertia')) {
+            $notifications = $user->notifications()
+                ->latest()
+                ->take(15)
+                ->get()
+                ->map(function ($notification) {
+                    return [
+                        'id' => $notification->id,
+                        'data' => $notification->data,
+                        'read_at' => $notification->read_at,
+                        'created_at' => $notification->created_at->diffForHumans(),
+                    ];
+                });
+
+            return response()->json([
+                'notifications' => $notifications,
+                'unreadCount' => $user->unreadNotifications()->count(),
+            ]);
+        }
+
+        $filter = $request->query('filter', 'all');
+        $query = $user->notifications()->latest();
+
+        if ($filter === 'unread') {
+            $query->whereNull('read_at');
+        } elseif ($filter === 'read') {
+            $query->whereNotNull('read_at');
+        }
+
+        $notifications = $query->paginate(20)
+            ->withQueryString()
+            ->through(function ($notification) {
                 return [
                     'id' => $notification->id,
+                    'type' => $notification->type,
                     'data' => $notification->data,
-                    'read_at' => $notification->read_at,
-                    'created_at' => $notification->created_at->diffForHumans(),
+                    'read_at' => $notification->read_at?->format('Y-m-d H:i:s'),
+                    'created_at' => $notification->created_at->format('Y-m-d H:i:s'),
+                    'created_at_human' => $notification->created_at->diffForHumans(),
                 ];
             });
 
-        return response()->json([
+        return Inertia::render('Notification/Index', [
             'notifications' => $notifications,
             'unreadCount' => $user->unreadNotifications()->count(),
+            'filter' => $filter,
+            'success' => session('success'),
         ]);
     }
 

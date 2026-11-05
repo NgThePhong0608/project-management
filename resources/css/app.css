@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Prevent horizontal overflow during layout transitions */
+html, body {
+    overflow-x: hidden;
+    max-width: 100vw;
+}
+
 /* Quill Rich Text Editor integration & Dark Mode overrides */
 .comment-quill .ql-toolbar.ql-snow {
     border-top-left-radius: 0.5rem;
