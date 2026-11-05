@@ -5,8 +5,9 @@ import {
   BellIcon,
   ClockIcon,
   CheckBadgeIcon,
-  ArrowLeftIcon,
 } from "@heroicons/react/24/outline";
+import { Button } from "@/Components/ui/button";
+import { ArrowLeft } from "lucide-react";
 
 export default function Show({ auth, notification }) {
   const data = notification?.data || {};
@@ -20,35 +21,34 @@ export default function Show({ auth, notification }) {
     <AuthenticatedLayout
       user={auth.user}
       header={
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <h2 className="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-              {title}
-            </h2>
-            <span
-              className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                isSecurity
-                  ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
-                  : "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300"
-              }`}
-            >
-              {category}
-            </span>
-          </div>
-          <Link
-            href={route("dashboard")}
-            className="inline-flex items-center space-x-1.5 bg-gray-100 dark:bg-gray-700 py-1.5 px-3 text-sm text-gray-700 dark:text-gray-200 rounded shadow-sm transition-all hover:bg-gray-200 dark:hover:bg-gray-600"
+        <div className="flex items-center space-x-3">
+          <h2 className="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
+            {title}
+          </h2>
+          <span
+            className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
+              isSecurity
+                ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+                : "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300"
+            }`}
           >
-            <ArrowLeftIcon className="w-4 h-4" />
-            <span>Back to Dashboard</span>
-          </Link>
+            {category}
+          </span>
         </div>
       }
     >
       <Head title={`Notification - ${title}`} />
 
       <div className="py-12">
-        <div className="max-w-4xl mx-auto sm:px-6 lg:px-8">
+        <div className="max-w-4xl mx-auto sm:px-6 lg:px-8 space-y-4">
+          <div className="flex items-center justify-between">
+            <Link href={route("notifications.index")}>
+              <Button variant="outline" size="sm" className="gap-1.5">
+                <ArrowLeft className="h-4 w-4" />
+                <span>Back to Notifications</span>
+              </Button>
+            </Link>
+          </div>
           <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg border border-gray-100 dark:border-gray-700">
             <div className="p-6 sm:p-8 text-gray-900 dark:text-gray-100">
               {/* Top Banner */}

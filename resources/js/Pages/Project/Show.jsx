@@ -1,10 +1,12 @@
 import React from "react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
-import { Head } from "@inertiajs/react";
+import { Head, Link } from "@inertiajs/react";
 import { PROJECT_STATUS_CLASS_MAP, PROJECT_STATUS_TEXT_MAP } from "@/constants";
 import TasksTable from "../Task/TasksTable";
 import ProjectMembers from "@/Components/ProjectMembers";
 import CommentSection from "@/Components/CommentSection";
+import { Button } from "@/Components/ui/button";
+import { ArrowLeft, Pencil } from "lucide-react";
 
 const Show = ({
   auth,
@@ -28,7 +30,25 @@ const Show = ({
       <Head title={`Project: "${project.name}"`} />
 
       <div className="py-12">
-        <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-8">
+        <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+          {/* Top Navigation & Actions */}
+          <div className="flex items-center justify-between">
+            <Link href={route("project.index")}>
+              <Button variant="outline" size="sm" className="gap-1.5">
+                <ArrowLeft className="h-4 w-4" />
+                <span>Back to Projects</span>
+              </Button>
+            </Link>
+            {project.can?.update && (
+              <Link href={route("project.edit", project.id)}>
+                <Button variant="outline" size="sm" className="gap-1.5">
+                  <Pencil className="h-4 w-4" />
+                  <span>Edit Project</span>
+                </Button>
+              </Link>
+            )}
+          </div>
+
           {/* Top Section: Project Details (2/3) + Project Members (1/3) */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
             {/* Project Details Card */}
