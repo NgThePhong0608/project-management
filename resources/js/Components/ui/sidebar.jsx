@@ -105,7 +105,7 @@ export function SidebarProvider({
           ...style,
         }}
         className={cn(
-          "group/sidebar-wrapper flex min-h-screen w-full bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100",
+          "group/sidebar-wrapper flex min-h-screen w-full max-w-full overflow-x-hidden bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100",
           className,
         )}
         {...props}
@@ -172,7 +172,7 @@ export function Sidebar({
   return (
     <div
       className={cn(
-        "group peer hidden lg:block text-gray-900 dark:text-gray-100 transition-[width] duration-300 ease-in-out shrink-0",
+        "group peer hidden lg:block text-gray-900 dark:text-gray-100 transition-[width] duration-300 ease-in-out shrink-0 overflow-hidden",
         state === "collapsed"
           ? "w-[--sidebar-width-icon]"
           : "w-[--sidebar-width]",
@@ -182,7 +182,7 @@ export function Sidebar({
     >
       <div
         className={cn(
-          "fixed inset-y-0 z-40 hidden h-screen transition-[width] duration-300 ease-in-out lg:flex flex-col border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900",
+          "fixed inset-y-0 z-40 hidden h-screen transition-[width] duration-300 ease-in-out lg:flex flex-col border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden",
           state === "collapsed"
             ? "w-[--sidebar-width-icon]"
             : "w-[--sidebar-width]",
@@ -247,21 +247,6 @@ export function SidebarGroup({ className, ...props }) {
   return (
     <div
       className={cn("relative flex w-full min-w-0 flex-col p-1.5", className)}
-      {...props}
-    />
-  );
-}
-
-export function SidebarGroupLabel({ className, ...props }) {
-  const { state } = useSidebar();
-  if (state === "collapsed") return null;
-
-  return (
-    <div
-      className={cn(
-        "px-2 py-1.5 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500",
-        className,
-      )}
       {...props}
     />
   );

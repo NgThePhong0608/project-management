@@ -173,18 +173,18 @@ export default function Authenticated({ user, header, children }) {
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full bg-gray-50 dark:bg-gray-950 overflow-x-hidden">
+      <div className="flex min-h-screen w-full max-w-full bg-gray-50 dark:bg-gray-950 overflow-x-hidden">
         {/* shadcn/ui Sidebar */}
         <ShadcnSidebar unreadChatCount={unreadChatCount} />
 
         {/* Main Column */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
+        <div className="flex-1 flex flex-col min-w-0 max-w-full overflow-x-hidden">
           {/* Top Sticky Header */}
           <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center border-b border-gray-200 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur shadow-sm">
             <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
               {/* Left Title / Breadcrumb */}
               <div className="flex items-center gap-3 min-w-0">
-                <SidebarTrigger />
+                <SidebarTrigger className="lg:hidden" />
                 {header ? (
                   <div className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">
                     {header}

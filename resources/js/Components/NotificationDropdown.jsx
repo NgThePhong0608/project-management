@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { router, usePage } from "@inertiajs/react";
+import { router, usePage, Link } from "@inertiajs/react";
 import axios from "axios";
 import {
   BellIcon,
@@ -267,6 +267,17 @@ export default function NotificationDropdown() {
                 );
               })
             )}
+          </div>
+
+          {/* Footer */}
+          <div className="p-2 border-t border-gray-100 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/80 text-center">
+            <Link
+              href={route("notifications.index")}
+              onClick={() => setOpen(false)}
+              className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+            >
+              View all notifications
+            </Link>
           </div>
         </div>
       )}
