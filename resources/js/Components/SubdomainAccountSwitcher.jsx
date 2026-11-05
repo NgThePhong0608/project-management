@@ -161,7 +161,10 @@ export default function SubdomainAccountSwitcher({ auth }) {
           </span>
         </Dropdown.Trigger>
 
-        <Dropdown.Content contentClasses="py-1 bg-white dark:bg-gray-800 w-80 shadow-xl border border-gray-100 dark:border-gray-700">
+        <Dropdown.Content
+          align="right"
+          contentClasses="py-1 bg-white dark:bg-gray-800 w-72 sm:w-80 max-w-[calc(100vw-2rem)] shadow-xl border border-gray-100 dark:border-gray-700"
+        >
           {/* Header Info */}
           <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
             <div className="flex items-center justify-between">

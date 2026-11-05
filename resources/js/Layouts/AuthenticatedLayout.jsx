@@ -1,21 +1,17 @@
 import { useState, useEffect } from "react";
-import ApplicationLogo from "@/Components/ApplicationLogo";
-import Dropdown from "@/Components/Dropdown";
+import { SidebarProvider, SidebarTrigger } from "@/Components/ui/sidebar";
+import ShadcnSidebar from "@/Components/Sidebar/ShadcnSidebar";
 import SubdomainAccountSwitcher from "@/Components/SubdomainAccountSwitcher";
-import NavLink from "@/Components/NavLink";
 import NotificationDropdown from "@/Components/NotificationDropdown";
 import NotificationToast from "@/Components/NotificationToast";
 import ChatToast from "@/Components/ChatToast";
 import IdleLogoutModal from "@/Components/IdleLogoutModal";
-import ResponsiveNavLink from "@/Components/ResponsiveNavLink";
 import { Link, usePage } from "@inertiajs/react";
-import { ChatBubbleLeftRightIcon } from "@heroicons/react/24/outline";
+import { MessageSquare } from "lucide-react";
 import axios from "axios";
 
 export default function Authenticated({ user, header, children }) {
   const { auth } = usePage().props;
-  const [showingNavigationDropdown, setShowingNavigationDropdown] =
-    useState(false);
   const [unreadChatCount, setUnreadChatCount] = useState(
     auth?.unreadChatCount || 0,
   );
@@ -107,7 +103,6 @@ export default function Authenticated({ user, header, children }) {
     });
 
     channel.listen(".message.sent", (event) => {
-      // Ignore messages sent by current user
       const messageSenderId =
         event?.message?.user_id || event?.message?.sender_id;
       if (
@@ -117,7 +112,6 @@ export default function Authenticated({ user, header, children }) {
         return;
       }
 
-      // Check if user is actively viewing this specific conversation
       const currentPath =
         typeof window !== "undefined" ? window.location.pathname : "";
       const isChatPage =
@@ -152,7 +146,6 @@ export default function Authenticated({ user, header, children }) {
         );
       }
 
-      // Always dispatch chat:message-received so Chat/Index or other components can update
       window.dispatchEvent(
         new CustomEvent("chat:message-received", {
           detail: event,
@@ -179,291 +172,81 @@ export default function Authenticated({ user, header, children }) {
   }, [currentUserId]);
 
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
-      <nav className="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex">
-              <div className="shrink-0 flex items-center">
-                <Link href="/">
-                  <ApplicationLogo className="block h-9 w-auto fill-current text-gray-800 dark:text-gray-200" />
-                </Link>
+    <SidebarProvider>
+      <div className="flex min-h-screen w-full bg-gray-50 dark:bg-gray-950 overflow-x-hidden">
+        {/* shadcn/ui Sidebar */}
+        <ShadcnSidebar unreadChatCount={unreadChatCount} />
+
+        {/* Main Column */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
+          {/* Top Sticky Header */}
+          <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center border-b border-gray-200 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur shadow-sm">
+            <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
+              {/* Left Title / Breadcrumb */}
+              <div className="flex items-center gap-3 min-w-0">
+                <SidebarTrigger />
+                {header ? (
+                  <div className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">
+                    {header}
+                  </div>
+                ) : (
+                  <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                    Workspace Overview
+                  </div>
+                )}
               </div>
 
-              <div className="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
-                <NavLink
-                  href={route("dashboard")}
-                  active={route().current("dashboard")}
-                >
-                  Dashboard
-                </NavLink>
-                <NavLink
-                  href={route("project.index")}
-                  active={route().current("project.index")}
-                >
-                  Project
-                </NavLink>
-                <NavLink
-                  href={route("task.index")}
-                  active={route().current("task.index")}
-                >
-                  Tasks
-                </NavLink>
-                <NavLink
+              {/* Right: Quick Actions with balanced margins */}
+              <div className="flex items-center gap-3">
+                <Link
                   href={route("chat.index")}
-                  active={route().current("chat.*")}
+                  className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+                  title="Messages & Chat"
                 >
-                  Messages
+                  <MessageSquare className="h-4 w-4" />
                   {unreadChatCount > 0 && (
-                    <span className="ms-2 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full">
+                    <span className="absolute top-1 right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white shadow-sm ring-2 ring-white dark:ring-gray-900">
                       {unreadChatCount > 9 ? "9+" : unreadChatCount}
                     </span>
                   )}
-                </NavLink>
-                {auth?.can?.manageUsers && (
-                  <NavLink
-                    href={route("user.index")}
-                    active={route().current("user.index")}
-                  >
-                    Users
-                  </NavLink>
-                )}
+                </Link>
+
+                <NotificationDropdown />
+
+                <div className="h-5 w-px bg-gray-200 dark:bg-gray-800 mx-1" />
+
+                <SubdomainAccountSwitcher auth={auth} />
               </div>
             </div>
+          </header>
 
-            <div className="hidden sm:flex sm:items-center sm:ms-6">
-              <Link
-                href={route("chat.index")}
-                className="relative p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition me-1"
-                title="Messages & Chat"
-              >
-                <ChatBubbleLeftRightIcon className="w-6 h-6" />
-                {unreadChatCount > 0 && (
-                  <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm ring-2 ring-white dark:ring-gray-900 transition-transform duration-200">
-                    {unreadChatCount > 9 ? "9+" : unreadChatCount}
-                  </span>
-                )}
-              </Link>
-              <NotificationDropdown />
-              <SubdomainAccountSwitcher auth={auth} />
-            </div>
-
-            <div className="-me-2 flex items-center sm:hidden space-x-2">
-              <Link
-                href={route("chat.index")}
-                className="relative p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition"
-                title="Messages & Chat"
-              >
-                <ChatBubbleLeftRightIcon className="w-6 h-6" />
-                {unreadChatCount > 0 && (
-                  <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm ring-2 ring-white dark:ring-gray-900 transition-transform duration-200">
-                    {unreadChatCount > 9 ? "9+" : unreadChatCount}
-                  </span>
-                )}
-              </Link>
-              <NotificationDropdown />
-              <button
-                onClick={() =>
-                  setShowingNavigationDropdown(
-                    (previousState) => !previousState,
-                  )
-                }
-                className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-900 focus:outline-none focus:bg-gray-100 dark:focus:bg-gray-900 focus:text-gray-500 dark:focus:text-gray-400 transition duration-150 ease-in-out"
-              >
-                <svg
-                  className="h-6 w-6"
-                  stroke="currentColor"
-                  fill="none"
-                  viewBox="0 0 24 24"
+          {/* 2FA Warning Banner */}
+          {currentUser && !currentUser.has_mfa && (
+            <div className="bg-amber-500/10 text-amber-900 dark:text-amber-200 border-b border-amber-500/20 px-4 py-2.5 text-xs">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2">
+                <span>
+                  <strong>Security Alert:</strong> Two-Factor Authentication is
+                  not enabled. ({currentUser.mfa_unconfigured_login_count ?? 0}
+                  /5 logins used).
+                </span>
+                <Link
+                  href={route("profile.edit")}
+                  className="rounded bg-amber-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm hover:bg-amber-500 transition shrink-0"
                 >
-                  <path
-                    className={
-                      !showingNavigationDropdown ? "inline-flex" : "hidden"
-                    }
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M4 6h16M4 12h16M4 18h16"
-                  />
-                  <path
-                    className={
-                      showingNavigationDropdown ? "inline-flex" : "hidden"
-                    }
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div
-          className={
-            (showingNavigationDropdown ? "block" : "hidden") + " sm:hidden"
-          }
-        >
-          <div className="pt-2 pb-3 space-y-1">
-            <ResponsiveNavLink
-              href={route("dashboard")}
-              active={route().current("dashboard")}
-            >
-              Dashboard
-            </ResponsiveNavLink>
-            <ResponsiveNavLink
-              href={route("chat.index")}
-              active={route().current("chat.*")}
-            >
-              <span className="flex items-center justify-between w-full">
-                <span>Messages</span>
-                {unreadChatCount > 0 && (
-                  <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-500 rounded-full">
-                    {unreadChatCount > 9 ? "9+" : unreadChatCount}
-                  </span>
-                )}
-              </span>
-            </ResponsiveNavLink>
-          </div>
-
-          <div className="pt-4 pb-1 border-t border-gray-200 dark:border-gray-600">
-            <div className="px-4">
-              <div className="font-medium text-base text-gray-800 dark:text-gray-200">
-                {user.name}
-              </div>
-              <div className="font-medium text-sm text-gray-500">
-                {user.email}
+                  Enable 2FA
+                </Link>
               </div>
             </div>
+          )}
 
-            <div className="mt-3 space-y-1">
-              <ResponsiveNavLink href={route("profile.edit")}>
-                Profile
-              </ResponsiveNavLink>
-
-              {auth?.canSwitchSubdomainSessions &&
-                auth?.activeSubdomainSessions?.length > 1 && (
-                  <div className="pt-2 pb-1 border-t border-gray-100 dark:border-gray-700">
-                    <div className="px-4 text-xs font-semibold uppercase text-gray-400">
-                      Switch Session (
-                      {auth?.activeSubdomainSessionsCount ||
-                        auth?.activeSubdomainSessions?.length}
-                      /{auth?.maxSubdomainSessions || 5})
-                    </div>
-                    {auth?.activeSubdomainSessions
-                      ?.filter((s) => s.slug !== auth?.subdomainSlug)
-                      .map((s) => (
-                        <a
-                          key={s.slug}
-                          href={`${window.location.protocol}//${s.host}/dashboard`}
-                          className="block px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                        >
-                          Switch to {s.name} ({s.role}) - {s.slug}
-                        </a>
-                      ))}
-                  </div>
-                )}
-
-              {auth?.multiSessionEnabled ? (
-                <ResponsiveNavLink
-                  method="post"
-                  href={route("auth.multi-session.disable")}
-                  as="button"
-                  className="text-amber-600 dark:text-amber-400 font-medium"
-                >
-                  Disable Multi-Session Mode
-                </ResponsiveNavLink>
-              ) : (
-                <ResponsiveNavLink
-                  method="post"
-                  href={route("auth.multi-session.enable")}
-                  as="button"
-                  className="text-indigo-600 dark:text-indigo-400 font-medium"
-                >
-                  Enable Multi-Session Mode
-                </ResponsiveNavLink>
-              )}
-
-              <ResponsiveNavLink
-                method="post"
-                href={route("logout")}
-                as="button"
-              >
-                Sign out of this session
-              </ResponsiveNavLink>
-
-              <ResponsiveNavLink
-                method="post"
-                href={route("auth.multi-session.terminate-all")}
-                as="button"
-                className="text-red-600 dark:text-red-400 font-medium"
-              >
-                Sign out of all sessions (
-                {auth?.activeSubdomainSessions?.length || 1})
-              </ResponsiveNavLink>
-
-              <ResponsiveNavLink
-                method="post"
-                href={route("auth.multi-session.terminate-all")}
-                as="button"
-                className="text-red-600 dark:text-red-400 font-medium"
-              >
-                Sign out of all sessions (
-                {auth?.activeSubdomainSessions?.length || 1})
-              </ResponsiveNavLink>
-            </div>
-          </div>
+          {/* Page Content - clean without double padding */}
+          <main className="flex-1">{children}</main>
         </div>
-      </nav>
-
-      {/* 2FA Warning Banner if user has not configured MFA */}
-      {currentUser && !currentUser.has_mfa && (
-        <div className="bg-amber-600 text-white px-4 py-2.5 shadow-sm border-b border-amber-700">
-          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-sm">
-            <div className="flex items-center space-x-2.5">
-              <svg
-                className="w-5 h-5 flex-shrink-0 text-amber-100"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              <span>
-                <strong className="font-semibold">Security Warning:</strong>{" "}
-                Two-Factor Authentication (2FA) is not enabled on your account.
-                You have logged in{" "}
-                {currentUser.mfa_unconfigured_login_count ?? 0}/5 times without
-                2FA. Your account will be locked after 5 logins.
-              </span>
-            </div>
-            <Link
-              href={route("profile.edit")}
-              className="inline-flex items-center px-3 py-1 bg-white text-amber-900 rounded font-semibold text-xs hover:bg-amber-50 uppercase tracking-wider transition shrink-0"
-            >
-              Set Up 2FA
-            </Link>
-          </div>
-        </div>
-      )}
-
-      {header && (
-        <header className="bg-white dark:bg-gray-800 shadow">
-          <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-            {header}
-          </div>
-        </header>
-      )}
-
-      <main>{children}</main>
+      </div>
 
       <NotificationToast />
       <ChatToast />
       <IdleLogoutModal />
-    </div>
+    </SidebarProvider>
   );
 }

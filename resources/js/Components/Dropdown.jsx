@@ -46,9 +46,9 @@ const Content = ({
   let alignmentClasses = "origin-top";
 
   if (align === "left") {
-    alignmentClasses = "ltr:origin-top-left rtl:origin-top-right start-0";
+    alignmentClasses = "origin-top-left left-0";
   } else if (align === "right") {
-    alignmentClasses = "ltr:origin-top-right rtl:origin-top-left end-0";
+    alignmentClasses = "origin-top-right right-0";
   }
 
   let widthClasses = "";
@@ -70,7 +70,7 @@ const Content = ({
         leaveTo="opacity-0 scale-95"
       >
         <div
-          className={`absolute z-50 mt-2 rounded-md shadow-lg ${alignmentClasses} ${widthClasses}`}
+          className={`absolute z-50 mt-2 rounded-md shadow-lg ${alignmentClasses} ${widthClasses} max-w-[calc(100vw-2rem)]`}
           onClick={() => setOpen(false)}
         >
           <div
