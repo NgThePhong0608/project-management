@@ -7,7 +7,12 @@ mkdir -p storage/framework/cache/data \
          storage/logs \
          bootstrap/cache
 
+# Ensure laravel.log exists and assign full write permissions to www-data immediately
+touch storage/logs/laravel.log 2>/dev/null || true
+chown -R www-data:www-data storage bootstrap/cache 2>/dev/null || true
 chmod -R 775 storage bootstrap/cache 2>/dev/null || true
+chmod -R 777 storage/logs storage/framework 2>/dev/null || true
+chmod 666 storage/logs/laravel.log 2>/dev/null || true
 
 if [ ! -f "vendor/autoload.php" ]; then
     echo "vendor/autoload.php not found. Installing composer dependencies..."
@@ -34,9 +39,10 @@ if [ "$APP_ENV" = "production" ]; then
     php artisan view:cache || true
 fi
 
-chown -R www-data:www-data storage bootstrap/cache
-chmod -R 777 storage bootstrap/cache
-chmod -R 777 storage/logs storage/framework
+chown -R www-data:www-data storage bootstrap/cache 2>/dev/null || true
+chmod -R 777 storage bootstrap/cache 2>/dev/null || true
+chmod -R 777 storage/logs storage/framework 2>/dev/null || true
+chmod 666 storage/logs/laravel.log 2>/dev/null || true
 
 if [ $# -gt 0 ]; then
     echo "Executing custom command: $@"
