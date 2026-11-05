@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/Components/ui/sidebar";
-import ShadcnSidebar from "@/Components/Sidebar/ShadcnSidebar";
+import ShadcnSidebar from "@/Components/Sidebar";
 import SubdomainAccountSwitcher from "@/Components/SubdomainAccountSwitcher";
 import NotificationDropdown from "@/Components/NotificationDropdown";
 import NotificationToast from "@/Components/NotificationToast";

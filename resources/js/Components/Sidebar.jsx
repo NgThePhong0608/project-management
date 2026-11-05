@@ -147,15 +147,10 @@ export default function ShadcnSidebar({ unreadChatCount = 0 }) {
           }`}
           title={
             state === "collapsed"
-              ? "Expand sidebar (Ctrl+B)"
-              : "Collapse sidebar (Ctrl+B)"
+              ? "Expand sidebar "
+              : "Collapse sidebar"  
           }
         >
-          {state === "expanded" && (
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-              Collapse Sidebar
-            </span>
-          )}
           {state === "collapsed" ? (
             <PanelLeftOpen className="h-4 w-4" />
           ) : (
