@@ -8,6 +8,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProfileTwoFactorController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectMemberController;
+use App\Http\Controllers\TaskAiController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\UserController;
 use Illuminate\Foundation\Application;
@@ -40,6 +41,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('task', TaskController::class);
     Route::patch('/task/{task}/quick-assign', [TaskController::class, 'quickAssign'])
         ->name('task.quickAssign');
+    Route::prefix('tasks/ai')->name('task.ai.')->group(function () {
+        Route::post('/breakdown', [TaskAiController::class, 'breakdown'])->name('breakdown');
+        Route::post('/enhance', [TaskAiController::class, 'enhance'])->name('enhance');
+    });
     Route::post('/comments', [CommentController::class, 'store'])->name('comments.store');
     Route::post('/comments/upload-image', [CommentController::class, 'uploadImage'])->name('comments.uploadImage');
     Route::get('/comments/attachment-url', [CommentController::class, 'attachmentUrl'])->name('comments.attachmentUrl');
