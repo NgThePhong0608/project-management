@@ -3,33 +3,17 @@ import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head, Link } from "@inertiajs/react";
 import LoginHistoryList from "@/Pages/Profile/Partials/LoginHistoryList";
 import TasksTable from "@/Pages/Task/TasksTable";
+import { Button } from "@/Components/ui/button";
+import { ArrowLeft, Pencil } from "lucide-react";
 
 const Show = ({ auth, user, tasks, queryParams, loginHistories = [] }) => {
   return (
     <AuthenticatedLayout
       user={auth.user}
       header={
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            {`User "${user.name}"`}
-          </h2>
-          {auth.user.role === "admin" && (
-            <Link
-              href={route("user.edit", user.id)}
-              className="bg-emerald-500 py-1.5 px-3 text-sm text-white rounded shadow transition-all hover:bg-emerald-600"
-            >
-              Edit User
-            </Link>
-          )}
-          {auth.user.role !== "admin" && auth.user.id === user.id && (
-            <Link
-              href={route("profile.edit")}
-              className="bg-indigo-600 py-1.5 px-3 text-sm text-white rounded shadow transition-all hover:bg-indigo-700"
-            >
-              Edit Profile
-            </Link>
-          )}
-        </div>
+        <h2 className="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
+          {`User "${user.name}"`}
+        </h2>
       }
     >
       <Head title={`User "${user.name}"`} />
@@ -51,29 +35,58 @@ const Show = ({ auth, user, tasks, queryParams, loginHistories = [] }) => {
             )}
 
             <div className="p-6 text-gray-900 dark:text-gray-100">
-              <div className="flex flex-col sm:flex-row sm:items-end -mt-14 sm:-mt-16 mb-6 gap-4">
-                {user.avatar_url ? (
-                  <img
-                    src={user.avatar_url}
-                    alt={user.name}
-                    className="w-24 h-24 rounded-2xl object-cover ring-4 ring-white dark:ring-gray-800 shadow-lg bg-white dark:bg-gray-700"
-                  />
-                ) : (
-                  <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 ring-4 ring-white dark:ring-gray-800 shadow-lg flex items-center justify-center text-white text-3xl font-bold uppercase">
-                    {user.name?.charAt(0) || "U"}
-                  </div>
-                )}
+              <div className="flex flex-col sm:flex-row sm:items-end justify-between -mt-14 sm:-mt-16 mb-6 gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+                  {user.avatar_url ? (
+                    <img
+                      src={user.avatar_url}
+                      alt={user.name}
+                      className="w-24 h-24 rounded-2xl object-cover ring-4 ring-white dark:ring-gray-800 shadow-lg bg-white dark:bg-gray-700"
+                    />
+                  ) : (
+                    <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 ring-4 ring-white dark:ring-gray-800 shadow-lg flex items-center justify-center text-white text-3xl font-bold uppercase">
+                      {user.name?.charAt(0) || "U"}
+                    </div>
+                  )}
 
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <h3 className="text-xl font-bold">{user.name}</h3>
-                    <span className="px-2.5 py-0.5 rounded-full text-xs uppercase font-bold bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300">
-                      {user.role}
-                    </span>
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <h3 className="text-xl font-bold">{user.name}</h3>
+                      <span className="px-2.5 py-0.5 rounded-full text-xs uppercase font-bold bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300">
+                        {user.role}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      {user.email}
+                    </p>
                   </div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {user.email}
-                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {auth.user.role === "admin" && (
+                    <Link href={route("user.index")}>
+                      <Button variant="outline" size="sm" className="gap-1.5">
+                        <ArrowLeft className="h-4 w-4" />
+                        <span>Back to Users</span>
+                      </Button>
+                    </Link>
+                  )}
+                  {auth.user.role === "admin" && (
+                    <Link href={route("user.edit", user.id)}>
+                      <Button variant="outline" size="sm" className="gap-1.5">
+                        <Pencil className="h-4 w-4" />
+                        <span>Edit User</span>
+                      </Button>
+                    </Link>
+                  )}
+                  {auth.user.role !== "admin" && auth.user.id === user.id && (
+                    <Link href={route("profile.edit")}>
+                      <Button variant="outline" size="sm" className="gap-1.5">
+                        <Pencil className="h-4 w-4" />
+                        <span>Edit Profile</span>
+                      </Button>
+                    </Link>
+                  )}
                 </div>
               </div>
 
