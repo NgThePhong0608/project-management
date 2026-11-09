@@ -1,6 +1,6 @@
 # AWS Lambda Serverless Microservices
 
-A standalone serverless microservices system for the Project Management project, running on AWS Lambda and Node.js.
+A standalone serverless microservices package for the Project Management application, powered by AWS Lambda and Node.js.
 
 ---
 
@@ -9,22 +9,18 @@ A standalone serverless microservices system for the Project Management project,
 ```
 lambda/
 ├── functions/
-│   ├── image-optimizer/      # [Feature 1] S3 Image Optimization (Sharp, auto-orient, WebP q80)
-│   │   ├── index.js
-│   │   └── package.json
-│   │
-│   └── sqs-consumer/         # [Feature 2] SQS Queue Worker for Laravel background jobs
+│   └── image-optimizer/      # S3 Image Optimization (Sharp, auto-orient, WebP q80)
 │       ├── index.js
 │       └── package.json
 │
 ├── shared/
-│   ├── database.js           # DynamoDB Document SDK v3 client
-│   ├── logger.js             # CloudWatch-standard structured JSON logger
-│   └── helpers.js            # Event parser, response formatters, validation
+│   ├── database.js           # DynamoDB Document Client (AWS SDK v3)
+│   ├── logger.js             # Structured JSON logger optimized for CloudWatch
+│   └── helpers.js            # Event parser, standard response formatters, validation
 │
 ├── scripts/
-│   ├── package.js            # Node.js script that bundles code + shared + node_modules into a .zip
-│   └── deploy.js             # Node.js script that updates function code on AWS Lambda
+│   ├── package.js            # Node.js packaging script (bundles code + shared + Linux Sharp into .zip)
+│   └── deploy.js             # Node.js deployment script (updates Lambda functions via AWS CLI)
 │
 ├── package.json
 └── README.md
@@ -32,44 +28,42 @@ lambda/
 
 ---
 
-## Feature Details According to the Plan
+## Functions
 
-### 1. `image-optimizer` (S3 Image Optimization & Compression) ⭐
-- **Purpose:** When users upload avatars, cover images, or task/comment attachments to the S3 bucket, the `s3:ObjectCreated:*` event triggers the Lambda.
-- **Features:**
-  - Automatically rotates images to the correct orientation based on camera EXIF data (`.rotate()`).
-  - Smart resizing with a maximum width limit of 1920px (`withoutEnlargement: true`).
-  - Compresses to the modern **WebP** format at quality 80 (`effort: 4`), reducing file size by 50% - 80%.
-  - Infinite-loop prevention mechanism (skips files already in the `optimized/` folder or with a `.webp` extension).
-  - Attaches the HTTP header `Cache-Control: max-age=31536000, public` when saving back to S3.
+### `image-optimizer` (S3 Image Optimization & WebP Conversion)
+
+- **Trigger:** Amazon S3 Object Created events (`s3:ObjectCreated:*`) when users upload avatars, cover images, or task/comment attachments.
+- **Key Features:**
+  - **Auto-Rotation:** Reads EXIF orientation and corrects image rotation (`.rotate()`).
+  - **Smart Resizing:** Enforces a maximum width limit of 1920px (`withoutEnlargement: true`).
+  - **WebP Compression:** Converts raw images into modern **WebP** format at quality 80 (`effort: 4`), saving 50%–80% storage and bandwidth.
+  - **Infinite Loop Protection:** Automatically skips images already under `optimized/` prefixes or ending in `.webp`.
+  - **Cache Optimization:** Attaches HTTP response headers `Cache-Control: max-age=31536000, public` upon S3 put.
+  - **Orphan Cleanup:** Synchronizes with S3 removal events (`s3:ObjectRemoved:*`) to automatically delete derived `.webp` images when the original source image is deleted.
 - **Dependencies:** `@aws-sdk/client-s3`, `sharp`.
 
-### 2. `sqs-consumer` (Queue Worker for Laravel) ⭐
-- **Purpose:** Processes background jobs that Laravel pushes into Amazon SQS (e.g., `App\Jobs\SendCommentNotifications`, `App\Notifications\UnreadChatReminderNotification`, `App\Events\TaskActivityRecorded`).
-- **Features:**
-  - Replaces the 24/7 `php artisan queue:work` daemon, starting automatically when jobs arrive and scaling down to zero when the queue is empty.
-  - Supports the standard **Partial Batch Failures** pattern (`batchItemFailures: [{ itemIdentifier }]`). If one message in a batch of 10 fails, only that message stays in the queue for retry or moves to the Dead-Letter Queue (DLQ); the 9 successful messages are deleted immediately.
-- **Dependencies:** `@aws-sdk/client-sqs`.
+---
+
+## Shared Modules (`lambda/shared/`)
+
+- **`logger.js`**: Structured JSON logging matching AWS CloudWatch standard formats (`DEBUG`, `INFO`, `WARN`, `ERROR` with error stacks and execution context).
+- **`helpers.js`**: Reusable helpers such as `successResponse()`, `errorResponse()`, `parseEventBody()`, and `validateRequiredFields()`.
+- **`database.js`**: Reusable `DynamoDBDocumentClient` initialization supporting both LocalStack and AWS Cloud environments.
 
 ---
 
-## Shared Libraries (`lambda/shared/`)
+## Packaging & Deployment (Pure Node.js)
 
-- **`logger.js`**: Writes structured JSON logs that display cleanly in the CloudWatch Console (`DEBUG`, `INFO`, `WARN`, `ERROR`, including error stack and function information).
-- **`helpers.js`**: `successResponse()`, `errorResponse()`, `parseEventBody()`, `validateRequiredFields()`.
-- **`database.js`**: Initializes the `DynamoDBDocumentClient` SDK v3, supporting both LocalStack and AWS Cloud.
-
----
-
-## Packaging & Deployment with Node.js
+All build and packaging steps are executed using pure Node.js scripts:
 
 ```bash
-# 1. Package all functions into .zip files in lambda/dist/
+# 1. Package all functions into zip archives under lambda/dist/
+# Automatically downloads Linux-compatible binary dependencies for Sharp
 node lambda/scripts/package.js
 
-# 2. Deploy to AWS Lambda
+# 2. Deploy functions to AWS Lambda
 node lambda/scripts/deploy.js
 
-# Optional environment & region settings:
-ENVIRONMENT=prod AWS_REGION=ap-southeast-1 node lambda/scripts/deploy.js
+# Optional: target specific stage and AWS region
+ENVIRONMENT=dev AWS_REGION=ap-southeast-1 node lambda/scripts/deploy.js
 ```

@@ -1,66 +1,146 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Enterprise Project Management Platform
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A modern, high-performance Project Management and Collaboration system built with **Laravel 12 (PHP 8.5)**, **Inertia.js (React 18)**, **Tailwind CSS**, and **shadcn/ui**. The system is architected for enterprise cloud deployments on **AWS (ECS, S3, DynamoDB, Bedrock, Lambda)** and **Cloudflare R2**.
 
-## About Laravel
+---
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## 🌟 Key Features
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+### 1. Modern CMS User Interface
+- **Modern Sidebar & Dashboard:** Collapsible, responsive sidebar navigation built with **shadcn/ui** and Lucide icons.
+- **Enterprise Data Tables:** Standardized tables with column sorting, status filtering, multi-user assignment, and pagination.
+- **Real-Time Notification Center:** Centralized notification panel and full notification index page with instant read/unread tracking and category badges.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+### 2. Amazon Bedrock AI Task Copilot
+- **✨ AI Task Breakdown:** Decomposes complex tasks into 3–6 actionable subtasks categorized by priority (`high`, `medium`, `low`) using **Claude 3.5 Haiku / APAC Cross-Region Inference**. Includes an interactive preview card with one-click appending to task descriptions.
+- **✨ AI Description Enhancer:** Polishes raw notes into structured Agile User Stories complete with **Context & Objective**, **Implementation Steps**, and **Definition of Done (DoD)**.
+- **Security & Authorization:** Enforces project-level authorization gates (`ProjectPolicy::view`) before any context is passed to LLM prompts.
 
-## Learning Laravel
+### 3. Serverless Image Processing (AWS Lambda)
+- **Event-Driven Image Optimizer:** Dedicated Lambda microservice listening to S3 upload events (`s3:ObjectCreated:*`).
+- **WebP Compression via Sharp:** Auto-orients images via EXIF, resizes to a maximum width of 1920px, converts to WebP (quality 80), and applies long-lived cache headers (`Cache-Control: max-age=31536000, public`).
+- **Orphan Cleanup:** Listens to `s3:ObjectRemoved:*` to automatically remove derived images when source media is deleted.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+### 4. Real-Time Collaboration & Messaging
+- **Hybrid Real-Time Chat:** Low-latency team messaging powered by **Laravel Reverb (WebSockets)** and **Amazon DynamoDB** for scalable message storage.
+- **Rich Comments & Mentions:** Interactive discussions with Quill rich-text editor, `@mention` user tagging, and secure short-lived temporary media URLs (5-minute expiration).
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+### 5. Multi-Tenant Architecture & Enterprise Security
+- **Wildcard Subdomain Multi-Session:** Seamless tenant and session switching via Redis session registries across custom subdomains.
+- **Two-Factor Authentication (2FA):** Time-based One-Time Password (TOTP) QR code setup with emergency recovery codes.
+- **Social Login (OAuth 2.0):** Single sign-on with GitHub, GitLab, and X (Twitter).
+- **Anti-Bot Defense:** Integrated Cloudflare Turnstile CAPTCHA.
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+---
 
-## Laravel Sponsors
+## 🏗️ Architecture & Tech Stack
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+```
+[Client (Inertia.js / React)]
+         │
+         ▼
+[Application Load Balancer (ALB) + ACM SSL]
+         │
+         ▼
+[Amazon ECS / EC2 (Nginx + PHP-FPM 8.5 App Container)]
+   ├── MySQL 8.0 (Relational Entities: Projects, Tasks, Users)
+   ├── Redis (Cache, Multi-Session Registry, Real-Time Presence)
+   ├── Laravel Reverb (WebSocket Server on Port 8080)
+   ├── Amazon DynamoDB (Chat Message Storage)
+   ├── Cloudflare R2 / Amazon S3 (Media Storage)
+   ├── Amazon Bedrock (Claude 3.5 Haiku Converse API)
+   └── AWS Lambda (S3 Image Optimizer via Sharp)
+```
 
-### Premium Partners
+---
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+## 🚀 Getting Started (Local Development)
 
-## Contributing
+### Prerequisites
+- [Docker](https://www.docker.com/) & [Docker Compose](https://docs.docker.com/compose/)
+- [Node.js 20+](https://nodejs.org/) & [NPM](https://www.npmjs.com/)
+- [Composer](https://getcomposer.org/) (optional, included in Docker container)
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+### Setup Instructions
 
-## Code of Conduct
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/NgThePhong0608/project-management.git
+   cd project-management
+   ```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+2. **Configure environment:**
+   ```bash
+   cp .env.example .env
+   ```
 
-## Security Vulnerabilities
+3. **Start Docker services:**
+   ```bash
+   docker compose up -d
+   ```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+4. **Initialize application:**
+   ```bash
+   # Generate application key
+   docker compose exec app php artisan key:generate
 
-## License
+   # Run database migrations and realistic enterprise seeders
+   docker compose exec app php artisan migrate --seed --seeder=RealisticDataSeeder
+   ```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+5. **Start frontend assets (Vite dev server):**
+   ```bash
+   npm install
+   npm run dev
+   ```
+
+6. **Access the application:**
+   - Web App: `http://localhost:8088`
+   - Reverb WebSocket: `ws://localhost:8080`
+   - DynamoDB Local: `http://localhost:8000`
+
+---
+
+## ⚡ Serverless Microservices (`lambda/`)
+
+The repository contains isolated AWS Lambda functions under the `lambda/` directory.
+
+### Build and Package:
+```bash
+# Package functions into deployable zip archives under lambda/dist/
+node lambda/scripts/package.js
+```
+
+### Deploy to AWS:
+```bash
+# Deploy to target AWS account and region
+ENVIRONMENT=dev AWS_REGION=ap-southeast-1 node lambda/scripts/deploy.js
+```
+
+For more details, see [lambda/README.md](file:///home/phongnt/Desktop/personal/project-management/lambda/README.md).
+
+---
+
+## 🧪 Testing & Quality Assurance
+
+Run the automated test suite and code style checkers:
+
+```bash
+# Run all PHPUnit tests inside Docker
+docker compose exec -T app php artisan test
+
+# Check code formatting with Laravel Pint
+docker compose exec -T app ./vendor/bin/pint --test
+
+# Run Prettier frontend linting
+npm run lint
+
+# Build production assets
+npm run build
+```
+
+---
+
+## 📄 License
+
+This project is open-sourced software licensed under the [MIT License](LICENSE).
