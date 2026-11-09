@@ -36,6 +36,29 @@ class NotificationTest extends TestCase
             ->assertJsonCount(1, 'notifications');
     }
 
+    public function test_user_can_view_notifications_index_page(): void
+    {
+        $user = User::factory()->create();
+        $project = Project::factory()->create(['created_by' => $user->id, 'updated_by' => $user->id]);
+        $task = Task::factory()->create([
+            'project_id' => $project->id,
+            'assigned_user_id' => $user->id,
+            'created_by' => $user->id,
+            'updated_by' => $user->id,
+        ]);
+
+        $user->notify(new TaskAssignedNotification($task));
+
+        $response = $this->actingAs($user)->get(route('notifications.index'));
+
+        $response->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Notification/Index')
+                ->has('notifications.data', 1)
+                ->where('unreadCount', 1)
+            );
+    }
+
     public function test_user_can_mark_single_notification_as_read(): void
     {
         $user = User::factory()->create();

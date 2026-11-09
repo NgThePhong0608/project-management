@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { router, usePage } from "@inertiajs/react";
+import { router, usePage, Link } from "@inertiajs/react";
 import axios from "axios";
 import {
   BellIcon,
@@ -174,7 +174,7 @@ export default function NotificationDropdown() {
 
       {/* Dropdown Panel */}
       {open && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-xl bg-white dark:bg-gray-800 shadow-2xl ring-1 ring-black ring-opacity-5 dark:ring-gray-700 z-50 overflow-hidden transition ease-out duration-100">
+        <div className="absolute right-0 mt-2 w-72 sm:w-80 md:w-96 max-w-[calc(100vw-2rem)] rounded-xl bg-white dark:bg-gray-800 shadow-2xl ring-1 ring-black ring-opacity-5 dark:ring-gray-700 z-50 overflow-hidden transition ease-out duration-100">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80">
             <div className="flex items-center space-x-2">
@@ -267,6 +267,17 @@ export default function NotificationDropdown() {
                 );
               })
             )}
+          </div>
+
+          {/* Footer */}
+          <div className="p-2 border-t border-gray-100 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/80 text-center">
+            <Link
+              href={route("notifications.index")}
+              onClick={() => setOpen(false)}
+              className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+            >
+              View all notifications
+            </Link>
           </div>
         </div>
       )}

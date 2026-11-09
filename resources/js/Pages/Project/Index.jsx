@@ -9,6 +9,15 @@ import {
 import TextInput from "@/Components/TextInput";
 import SelectInput from "@/Components/SelectInput";
 import TableHeading from "@/Components/TableHeading";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/Components/ui/card";
+import { Button } from "@/Components/ui/button";
+import { Plus } from "lucide-react";
 
 const ROLE_BADGE_MAP = {
   owner: {
@@ -127,269 +136,284 @@ const Index = ({
     <AuthenticatedLayout
       user={auth.user}
       header={
-        <div className="flex justify-between items-center">
-          <h2 className="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            Projects
-          </h2>
-          {auth?.can?.createProject && (
-            <Link
-              href={route("project.create")}
-              className="bg-emerald-500 py-1 px-3 text-white rounded shadow transition-all hover:bg-emerald-600"
-            >
-              Add new
-            </Link>
-          )}
-        </div>
+        <h2 className="font-semibold text-lg text-gray-900 dark:text-gray-100">
+          Projects
+        </h2>
       }
     >
-      <Head title="Project" />
+      <Head title="Projects" />
 
-      <div className="py-12">
-        <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
-          {success && (
-            <div className="bg-emerald-500 py-2 px-4 text-white rounded mb-4">
-              {success}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {success && (
+          <div className="bg-emerald-500/15 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 py-2.5 px-4 rounded-lg mb-4 text-sm font-medium">
+            {success}
+          </div>
+        )}
+
+        <Card className="shadow-sm">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-gray-100 dark:border-gray-800 pb-4">
+            <div>
+              <CardTitle className="text-base font-semibold">
+                Projects List
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Manage, filter, and track workspace projects.
+              </CardDescription>
             </div>
-          )}
-          <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
-            <div className="p-6 text-gray-900 dark:text-gray-100">
-              <div className="overflow-auto">
-                <table className="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
-                  <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400 border-b-2 border-gray-500">
-                    <tr className="text-nowrap">
-                      <TableHeading
-                        name={"id"}
-                        sort_field={queryParams.sort_field}
-                        sort_direction={queryParams.sort_direction}
-                        sortChanged={sortChanged}
-                      >
-                        ID
-                      </TableHeading>
-                      <th className="px-3 py-3">Image</th>
-                      <TableHeading
-                        name={"name"}
-                        sort_field={queryParams.sort_field}
-                        sort_direction={queryParams.sort_direction}
-                        sortChanged={sortChanged}
-                      >
-                        Name
-                      </TableHeading>
-                      <TableHeading
-                        name={"status"}
-                        sort_field={queryParams.sort_field}
-                        sort_direction={queryParams.sort_direction}
-                        sortChanged={sortChanged}
-                      >
-                        Status
-                      </TableHeading>
-                      <TableHeading
-                        name={"members_count"}
-                        sort_field={queryParams.sort_field}
-                        sort_direction={queryParams.sort_direction}
-                        sortChanged={sortChanged}
-                      >
-                        Members
-                      </TableHeading>
-                      <th className="px-3 py-3">My Access</th>
-                      <TableHeading
-                        name={"created_at"}
-                        sort_field={queryParams.sort_field}
-                        sort_direction={queryParams.sort_direction}
-                        sortChanged={sortChanged}
-                      >
-                        Created Date
-                      </TableHeading>
-                      <TableHeading
-                        name={"due_date"}
-                        sort_field={queryParams.sort_field}
-                        sort_direction={queryParams.sort_direction}
-                        sortChanged={sortChanged}
-                      >
-                        Due Date
-                      </TableHeading>
-                      <th className="px-3 py-3">Assigned / Owner</th>
-                      <th className="px-3 py-3 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400 border-b-2 border-gray-500">
-                    <tr className="text-nowrap">
-                      <th className="px-3 py-3"></th>
-                      <th className="px-3 py-3"></th>
-                      <th className="px-3 py-3">
-                        <TextInput
-                          className="w-full"
-                          defaultValue={queryParams.name}
-                          placeholder="Project Name"
-                          onBlur={(e) =>
-                            searchFieldChanged("name", e.target.value)
-                          }
-                          onKeyPress={(e) => onKeyPress("name", e)}
-                        />
-                      </th>
-                      <th className="px-3 py-3">
-                        <SelectInput
-                          className="w-full"
-                          defaultValue={queryParams.status}
-                          onChange={(e) =>
-                            searchFieldChanged("status", e.target.value)
-                          }
-                        >
-                          <option value="">Select Status</option>
-                          <option value="pending">Pending</option>
-                          <option value="in_progress">In Progress</option>
-                          <option value="completed">Completed</option>
-                          <option value="closed">Closed</option>
-                        </SelectInput>
-                      </th>
-                      <th className="px-3 py-3"></th>
-                      <th className="px-3 py-3">
-                        <SelectInput
-                          className="w-full"
-                          defaultValue={queryParams.scope}
-                          onChange={(e) =>
-                            searchFieldChanged("scope", e.target.value)
-                          }
-                        >
-                          <option value="">All Accessible</option>
-                          <option value="owned">Created by Me</option>
-                          <option value="managed">Managed by Me</option>
-                          <option value="joined">Joined</option>
-                        </SelectInput>
-                      </th>
-                      <th className="px-3 py-3"></th>
-                      <th className="px-3 py-3"></th>
-                      <th className="px-3 py-3"></th>
-                      <th className="px-3 py-3"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {projects.data.map((project) => {
-                      const roleBadge =
-                        ROLE_BADGE_MAP[project.my_project_role] ||
-                        (auth.user.role === "admin"
-                          ? {
-                              label: "Admin View",
-                              className:
-                                "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300 border border-amber-400/30",
-                            }
-                          : null);
+            {auth?.can?.createProject && (
+              <Link href={route("project.create")}>
+                <Button size="sm" className="gap-1.5">
+                  <Plus className="h-4 w-4" />
+                  <span>Add new project</span>
+                </Button>
+              </Link>
+            )}
+          </CardHeader>
 
-                      return (
-                        <tr
-                          key={project.id}
-                          className="bg-white border-b dark:bg-gray-800 dark:border-gray-700"
-                        >
-                          <th className="px-3 py-2">{project.id}</th>
-                          <td className="px-3 py-2">
-                            {project.image_path ? (
-                              <img
-                                src={project.image_path}
-                                alt={project.name}
-                                style={{ width: 80 }}
-                                className="rounded object-cover"
-                              />
-                            ) : (
-                              <span className="text-xs text-gray-400 italic">
-                                No image
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-3 py-2">
-                            <Link
-                              href={route("project.show", project.id)}
-                              className="px-3 py-2 font-medium text-white text-nowrap hover:underline"
-                            >
-                              {project.name}
-                            </Link>
-                          </td>
-                          <td className="px-3 py-2 text-nowrap">
-                            <span
-                              className={
-                                "px-3 py-1 rounded text-white " +
-                                PROJECT_STATUS_CLASS_MAP[project.status]
-                              }
-                            >
-                              {PROJECT_STATUS_TEXT_MAP[project.status]}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2">
-                            <MemberStack
-                              count={project.members_count}
-                              preview={project.members_preview}
+          <CardContent className="p-0">
+            <div className="overflow-auto">
+              <table className="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
+                <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400 border-b-2 border-gray-500">
+                  <tr className="text-nowrap">
+                    <TableHeading
+                      name={"id"}
+                      sort_field={queryParams.sort_field}
+                      sort_direction={queryParams.sort_direction}
+                      sortChanged={sortChanged}
+                    >
+                      ID
+                    </TableHeading>
+                    <th className="px-3 py-3">Image</th>
+                    <TableHeading
+                      name={"name"}
+                      sort_field={queryParams.sort_field}
+                      sort_direction={queryParams.sort_direction}
+                      sortChanged={sortChanged}
+                    >
+                      Name
+                    </TableHeading>
+                    <TableHeading
+                      name={"status"}
+                      sort_field={queryParams.sort_field}
+                      sort_direction={queryParams.sort_direction}
+                      sortChanged={sortChanged}
+                    >
+                      Status
+                    </TableHeading>
+                    <TableHeading
+                      name={"members_count"}
+                      sort_field={queryParams.sort_field}
+                      sort_direction={queryParams.sort_direction}
+                      sortChanged={sortChanged}
+                    >
+                      Members
+                    </TableHeading>
+                    <th className="px-3 py-3">My Access</th>
+                    <TableHeading
+                      name={"created_at"}
+                      sort_field={queryParams.sort_field}
+                      sort_direction={queryParams.sort_direction}
+                      sortChanged={sortChanged}
+                    >
+                      Created Date
+                    </TableHeading>
+                    <TableHeading
+                      name={"due_date"}
+                      sort_field={queryParams.sort_field}
+                      sort_direction={queryParams.sort_direction}
+                      sortChanged={sortChanged}
+                    >
+                      Due Date
+                    </TableHeading>
+                    <th className="px-3 py-3">Assigned / Owner</th>
+                    <th className="px-3 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400 border-b-2 border-gray-500">
+                  <tr className="text-nowrap">
+                    <th className="px-3 py-3"></th>
+                    <th className="px-3 py-3"></th>
+                    <th className="px-3 py-3">
+                      <TextInput
+                        className="w-full"
+                        defaultValue={queryParams.name}
+                        placeholder="Project Name"
+                        onBlur={(e) =>
+                          searchFieldChanged("name", e.target.value)
+                        }
+                        onKeyPress={(e) => onKeyPress("name", e)}
+                      />
+                    </th>
+                    <th className="px-3 py-3">
+                      <SelectInput
+                        className="w-full"
+                        defaultValue={queryParams.status}
+                        onChange={(e) =>
+                          searchFieldChanged("status", e.target.value)
+                        }
+                      >
+                        <option value="">Select Status</option>
+                        <option value="pending">Pending</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="completed">Completed</option>
+                        <option value="closed">Closed</option>
+                      </SelectInput>
+                    </th>
+                    <th className="px-3 py-3"></th>
+                    <th className="px-3 py-3">
+                      <SelectInput
+                        className="w-full"
+                        defaultValue={queryParams.scope}
+                        onChange={(e) =>
+                          searchFieldChanged("scope", e.target.value)
+                        }
+                      >
+                        <option value="">All Accessible</option>
+                        <option value="owned">Created by Me</option>
+                        <option value="managed">Managed by Me</option>
+                        <option value="joined">Joined</option>
+                      </SelectInput>
+                    </th>
+                    <th className="px-3 py-3"></th>
+                    <th className="px-3 py-3"></th>
+                    <th className="px-3 py-3"></th>
+                    <th className="px-3 py-3"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {projects.data.map((project) => {
+                    const roleBadge =
+                      ROLE_BADGE_MAP[project.my_project_role] ||
+                      (auth.user.role === "admin"
+                        ? {
+                            label: "Admin View",
+                            className:
+                              "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300 border border-amber-400/30",
+                          }
+                        : null);
+
+                    return (
+                      <tr
+                        key={project.id}
+                        className="bg-white border-b dark:bg-gray-800 dark:border-gray-700"
+                      >
+                        <th className="px-3 py-2">{project.id}</th>
+                        <td className="px-3 py-2">
+                          {project.image_path ? (
+                            <img
+                              src={project.image_path}
+                              alt={project.name}
+                              style={{ width: 80 }}
+                              className="rounded object-cover"
                             />
-                          </td>
-                          <td className="px-3 py-2 text-nowrap">
-                            {roleBadge && (
-                              <span
-                                className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${roleBadge.className}`}
-                              >
-                                {roleBadge.label}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-3 py-2 text-nowrap">
-                            {project.created_at}
-                          </td>
-                          <td className="px-3 py-2 text-nowrap">
-                            {project.due_date}
-                          </td>
-                          <td className="px-3 py-2 text-nowrap">
-                            {project.can?.quickAssign &&
-                            assignableUsers.length > 0 ? (
-                              <select
-                                value={project.createdBy?.id || ""}
-                                onChange={(e) =>
-                                  quickAssignProject(project, e.target.value)
-                                }
-                                className="text-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 py-1 pl-2 pr-7 focus:ring-indigo-500 focus:border-indigo-500"
-                                title="Quick assign project to a Manager (Admin only)"
-                              >
-                                {!assignableUsers.some(
-                                  (u) => u.id === project.createdBy?.id,
-                                ) && (
-                                  <option value={project.createdBy?.id || ""}>
-                                    {project.createdBy?.name} (
-                                    {project.createdBy?.role || "owner"})
-                                  </option>
-                                )}
-                                {assignableUsers.map((u) => (
-                                  <option key={u.id} value={u.id}>
-                                    {u.name} (manager)
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <span>{project.createdBy?.name}</span>
-                            )}
-                          </td>
-                          <td className="px-3 py-2 text-nowrap text-right">
-                            {project.can?.update && (
-                              <Link
-                                href={route("project.edit", project.id)}
-                                className="font-medium text-blue-600 dark:text-blue-500 hover:underline mx-1"
+                          ) : (
+                            <span className="text-xs text-gray-400 italic">
+                              No image
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2">
+                          <Link
+                            href={route("project.show", project.id)}
+                            className="px-3 py-2 font-medium text-white text-nowrap hover:underline"
+                          >
+                            {project.name}
+                          </Link>
+                        </td>
+                        <td className="px-3 py-2 text-nowrap">
+                          <span
+                            className={
+                              "px-3 py-1 rounded text-white " +
+                              PROJECT_STATUS_CLASS_MAP[project.status]
+                            }
+                          >
+                            {PROJECT_STATUS_TEXT_MAP[project.status]}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2">
+                          <MemberStack
+                            count={project.members_count}
+                            preview={project.members_preview}
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-nowrap">
+                          {roleBadge && (
+                            <span
+                              className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${roleBadge.className}`}
+                            >
+                              {roleBadge.label}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-nowrap">
+                          {project.created_at}
+                        </td>
+                        <td className="px-3 py-2 text-nowrap">
+                          {project.due_date}
+                        </td>
+                        <td className="px-3 py-2 text-nowrap">
+                          {project.can?.quickAssign &&
+                          assignableUsers.length > 0 ? (
+                            <select
+                              value={project.createdBy?.id || ""}
+                              onChange={(e) =>
+                                quickAssignProject(project, e.target.value)
+                              }
+                              className="text-xs rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 py-1 pl-2 pr-7 focus:ring-indigo-500 focus:border-indigo-500"
+                              title="Quick assign project to a Manager (Admin only)"
+                            >
+                              {!assignableUsers.some(
+                                (u) => u.id === project.createdBy?.id,
+                              ) && (
+                                <option value={project.createdBy?.id || ""}>
+                                  {project.createdBy?.name} (
+                                  {project.createdBy?.role || "owner"})
+                                </option>
+                              )}
+                              {assignableUsers.map((u) => (
+                                <option key={u.id} value={u.id}>
+                                  {u.name} (manager)
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span>{project.createdBy?.name}</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-nowrap text-right space-x-1.5">
+                          {project.can?.update && (
+                            <Link href={route("project.edit", project.id)}>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-2.5 text-xs text-blue-600 dark:text-blue-400"
                               >
                                 Edit
-                              </Link>
-                            )}
-                            {project.can?.delete && (
-                              <button
-                                onClick={(e) => deleteProject(project)}
-                                className="font-medium text-red-600 dark:text-red-500 hover:underline mx-1"
-                              >
-                                Delete
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                              </Button>
+                            </Link>
+                          )}
+                          {project.can?.delete && (
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              className="h-7 px-2.5 text-xs"
+                              onClick={() => deleteProject(project)}
+                            >
+                              Delete
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="p-4 border-t border-gray-100 dark:border-gray-800">
               <Pagination links={projects.meta.links} />
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
     </AuthenticatedLayout>
   );
