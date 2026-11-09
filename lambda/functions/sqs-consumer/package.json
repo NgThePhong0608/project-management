@@ -1,0 +1,11 @@
+{
+  "name": "lambda-sqs-consumer",
+  "version": "1.0.0",
+  "description": "AWS Lambda SQS batch worker for processing queued Laravel background jobs with partial batch failure reporting",
+  "main": "index.js",
+  "type": "commonjs",
+  "dependencies": {
+    "@aws-sdk/client-sqs": "^3.600.0"
+  }
+}
+

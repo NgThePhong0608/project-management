@@ -65,6 +65,11 @@ return [
         'table_messages' => env('DYNAMODB_TABLE_MESSAGES', 'chat_messages'),
     ],
 
+    'bedrock' => [
+        'model_id' => env('AWS_BEDROCK_MODEL_ID', 'anthropic.claude-3-5-haiku-20241022-v1:0'),
+        'region' => env('AWS_BEDROCK_REGION', env('AWS_DEFAULT_REGION', 'us-east-1')),
+    ],
+
     'turnstile' => [
         'enabled' => filter_var(env('TURNSTILE_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
         'site_key' => env('TURNSTILE_SITE_KEY'),

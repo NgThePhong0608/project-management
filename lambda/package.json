@@ -1,0 +1,11 @@
+{
+  "name": "pm-lambda-suite",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "package": "node scripts/package.js",
+    "deploy": "node scripts/deploy.js"
+  }
+}
+

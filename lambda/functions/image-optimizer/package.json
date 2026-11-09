@@ -1,0 +1,12 @@
+{
+  "name": "lambda-image-optimizer",
+  "version": "1.0.0",
+  "description": "AWS Lambda function to auto-orient, resize (max 1920) and convert uploaded S3 images to WebP format",
+  "main": "index.js",
+  "type": "commonjs",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.600.0",
+    "sharp": "^0.33.0"
+  }
+}
+
