@@ -33,6 +33,8 @@ const Edit = ({ auth, task, projects, users }) => {
     assigned_user_id: task.assigned_user_id || task.assignedUser?.id || "",
     _method: "PUT",
   });
+  const descriptionRef = useRef(data.description);
+  descriptionRef.current = data.description;
 
   const handleImageChange = (e) => {
     const file = e.target.files?.[0];
@@ -60,16 +62,24 @@ const Edit = ({ auth, task, projects, users }) => {
       return;
     }
 
+    const submittedDescription = data.description;
     setEnhancing(true);
     try {
       const res = await axios.post(route("task.ai.enhance"), {
         title: data.name,
-        description: data.description,
+        description: submittedDescription,
         project_id: data.project_id || null,
       });
 
       if (res.data?.enhanced_description) {
-        setData("description", res.data.enhanced_description);
+        if (
+          descriptionRef.current === submittedDescription ||
+          window.confirm(
+            "The description changed while AI Enhance was running. Replace with the AI-enhanced version?",
+          )
+        ) {
+          setData("description", res.data.enhanced_description);
+        }
       }
     } catch (err) {
       console.error("AI Enhance error:", err);
@@ -293,8 +303,9 @@ const Edit = ({ auth, task, projects, users }) => {
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
+                        disabled={enhancing}
                         onClick={handleAppendSubtasks}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 transition shadow-xs"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition shadow-xs"
                       >
                         {appendedSuccess ? (
                           <>
@@ -379,6 +390,7 @@ const Edit = ({ auth, task, projects, users }) => {
                   id="task_description"
                   name="description"
                   value={data.description}
+                  disabled={enhancing}
                   className="mt-1 block w-full"
                   rows="6"
                   onChange={(e) => setData("description", e.target.value)}

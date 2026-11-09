@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import InputError from "@/Components/InputError";
 import InputLabel from "@/Components/InputLabel";
 import SelectInput from "@/Components/SelectInput";
@@ -26,6 +26,8 @@ const Create = ({ auth, projects, users }) => {
     priority: "",
     assigned_user_id: "",
   });
+  const descriptionRef = useRef(data.description);
+  descriptionRef.current = data.description;
 
   const handleAiEnhance = async () => {
     if (!data.name?.trim() || !data.description?.trim()) {
@@ -35,16 +37,24 @@ const Create = ({ auth, projects, users }) => {
       return;
     }
 
+    const submittedDescription = data.description;
     setEnhancing(true);
     try {
       const res = await axios.post(route("task.ai.enhance"), {
         title: data.name,
-        description: data.description,
+        description: submittedDescription,
         project_id: data.project_id || null,
       });
 
       if (res.data?.enhanced_description) {
-        setData("description", res.data.enhanced_description);
+        if (
+          descriptionRef.current === submittedDescription ||
+          window.confirm(
+            "The description changed while AI Enhance was running. Replace with the AI-enhanced version?",
+          )
+        ) {
+          setData("description", res.data.enhanced_description);
+        }
       }
     } catch (err) {
       console.error("AI Enhance error:", err);
@@ -205,8 +215,9 @@ const Create = ({ auth, projects, users }) => {
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
+                        disabled={enhancing}
                         onClick={handleAppendSubtasks}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 transition shadow-xs"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition shadow-xs"
                       >
                         {appendedSuccess ? (
                           <>
@@ -290,6 +301,7 @@ const Create = ({ auth, projects, users }) => {
                   id="task_description"
                   name="description"
                   value={data.description}
+                  disabled={enhancing}
                   className="mt-1 block w-full"
                   rows="6"
                   onChange={(e) => setData("description", e.target.value)}

@@ -49,11 +49,12 @@ function packageFunctions() {
         copyDirRecursive(SHARED_DIR, destSharedDir);
       }
 
-      // 3. Install production dependencies if package.json exists
+      // 3. Install production dependencies targeting Linux Lambda runtime
       const pkgPath = path.join(tempDir, 'package.json');
       if (fs.existsSync(pkgPath)) {
-        console.log(`    Installing production dependencies for ${funcName}...`);
-        execSync('npm install --production --silent', {
+        const targetCpu = process.env.LAMBDA_ARCH || 'x64';
+        console.log(`    Installing production dependencies for ${funcName} (linux/${targetCpu})...`);
+        execSync(`npm install --omit=dev --os=linux --cpu=${targetCpu} --silent`, {
           cwd: tempDir,
           stdio: 'ignore',
         });
