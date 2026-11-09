@@ -149,4 +149,26 @@ class TaskAiTest extends TestCase
         $response->assertOk();
         $response->assertJsonCount(1, 'subtasks');
     }
+
+    public function test_non_member_cannot_access_private_project_context(): void
+    {
+        $otherOwner = User::factory()->create();
+        $privateProject = Project::factory()->create([
+            'name' => 'Secret Project',
+            'description' => 'Confidential details',
+            'created_by' => $otherOwner->id,
+            'updated_by' => $otherOwner->id,
+        ]);
+
+        $this->actingAs($this->user)->postJson(route('task.ai.breakdown'), [
+            'title' => 'Leak context',
+            'project_id' => $privateProject->id,
+        ])->assertForbidden();
+
+        $this->actingAs($this->user)->postJson(route('task.ai.enhance'), [
+            'title' => 'Leak context',
+            'description' => 'Try to leak',
+            'project_id' => $privateProject->id,
+        ])->assertForbidden();
+    }
 }

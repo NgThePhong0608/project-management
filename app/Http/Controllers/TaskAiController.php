@@ -17,13 +17,7 @@ class TaskAiController extends Controller
             'project_id' => 'nullable|integer',
         ]);
 
-        $projectContext = null;
-        if (! empty($validated['project_id'])) {
-            $project = Project::find($validated['project_id']);
-            if ($project) {
-                $projectContext = "Project Name: {$project->name}. Summary: {$project->description}";
-            }
-        }
+        $projectContext = $this->resolveProjectContext($validated['project_id'] ?? null);
 
         $subtasks = $bedrock->breakdownTask(
             $validated['title'],
@@ -44,13 +38,7 @@ class TaskAiController extends Controller
             'project_id' => 'nullable|integer',
         ]);
 
-        $projectContext = null;
-        if (! empty($validated['project_id'])) {
-            $project = Project::find($validated['project_id']);
-            if ($project) {
-                $projectContext = "Project Name: {$project->name}. Summary: {$project->description}";
-            }
-        }
+        $projectContext = $this->resolveProjectContext($validated['project_id'] ?? null);
 
         $enhanced = $bedrock->enhanceTaskDescription(
             $validated['title'],
@@ -61,5 +49,21 @@ class TaskAiController extends Controller
         return response()->json([
             'enhanced_description' => $enhanced,
         ]);
+    }
+
+    private function resolveProjectContext(?int $projectId): ?string
+    {
+        if (! $projectId) {
+            return null;
+        }
+
+        $project = Project::find($projectId);
+        if (! $project) {
+            return null;
+        }
+
+        $this->authorize('view', $project);
+
+        return "Project Name: {$project->name}. Summary: {$project->description}";
     }
 }

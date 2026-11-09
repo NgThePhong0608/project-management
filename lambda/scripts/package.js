@@ -35,8 +35,13 @@ function packageFunctions() {
     const tempDir = fs.mkdtempSync(path.join(DIST_DIR, `temp-${funcName}-`));
 
     try {
-      // 1. Copy function files
+      // 1. Copy function files and align shared import paths for ZIP root layout
       copyDirRecursive(funcDir, tempDir);
+      const rootIndex = path.join(tempDir, 'index.js');
+      if (fs.existsSync(rootIndex)) {
+        const content = fs.readFileSync(rootIndex, 'utf8').replace(/\.\.\/\.\.\/shared\//g, './shared/');
+        fs.writeFileSync(rootIndex, content, 'utf8');
+      }
 
       // 2. Copy shared utilities to tempDir/shared
       const destSharedDir = path.join(tempDir, 'shared');

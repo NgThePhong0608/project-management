@@ -27,25 +27,26 @@ async function processLaravelJob(payload, messageId) {
   const jobName = payload.displayName || payload.job || 'UnknownJob';
   logger.info(`[Job ${messageId}] Starting processing for: ${jobName}`, { messageId, jobName });
 
-  switch (jobName) {
-    case 'App\\Jobs\\SendCommentNotifications':
-      logger.info(`[Job ${messageId}] Processing comment notification delivery.`, {
-        jobData: payload.data ? Object.keys(payload.data) : [],
-      });
-      // In production: dispatch notification via SES/SNS/WebSocket
-      break;
+  const workerUrl = process.env.LARAVEL_WORKER_URL;
+  if (!workerUrl) {
+    throw new Error(
+      `[Job ${messageId}] LARAVEL_WORKER_URL is not configured; cannot execute ${jobName}. Reporting as failed to retain message in SQS.`
+    );
+  }
 
-    case 'App\\Notifications\\UnreadChatReminderNotification':
-      logger.info(`[Job ${messageId}] Dispatching unread chat reminders.`);
-      break;
+  const response = await fetch(workerUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(process.env.LARAVEL_WORKER_SECRET && {
+        'X-Worker-Secret': process.env.LARAVEL_WORKER_SECRET,
+      }),
+    },
+    body: JSON.stringify({ messageId, jobName, payload }),
+  });
 
-    case 'App\\Events\\TaskActivityRecorded':
-      logger.info(`[Job ${messageId}] Recording task activity event asynchronously.`);
-      break;
-
-    default:
-      logger.info(`[Job ${messageId}] Processing generic queue job: ${jobName}`);
-      break;
+  if (!response.ok) {
+    throw new Error(`[Job ${messageId}] Worker returned HTTP ${response.status} for ${jobName}`);
   }
 
   logger.info(`[Job ${messageId}] Completed successfully.`);
