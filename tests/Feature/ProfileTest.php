@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\LoginHistory;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -266,7 +267,7 @@ class ProfileTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Profile/Edit')
-                ->has('loginHistories', 2)
+                ->has('loginHistories.data', 2)
                 ->has('memberLoginHistories', 0)
             );
 
@@ -276,7 +277,7 @@ class ProfileTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Profile/Edit')
-                ->has('memberLoginHistories', 2)
+                ->has('memberLoginHistories.data', 2)
             );
 
         // Admin views member's User/Show page: sees member's loginHistories
@@ -286,6 +287,43 @@ class ProfileTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('User/Show')
                 ->has('loginHistories', 2)
+            );
+    }
+
+    public function test_login_histories_are_paginated_with_ten_items_per_page(): void
+    {
+        $user = User::factory()->create(['role' => 'member']);
+
+        for ($i = 0; $i < 15; $i++) {
+            LoginHistory::create([
+                'user_id' => $user->id,
+                'event' => 'login',
+                'ip_address' => '127.0.0.1',
+                'user_agent' => 'Mozilla/5.0 TestBrowser',
+                'occurred_at' => now()->subMinutes(15 - $i),
+            ]);
+        }
+
+        // Page 1
+        $this->actingAs($user)
+            ->get('/profile?login_page=1')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Profile/Edit')
+                ->has('loginHistories.data', 10)
+                ->where('loginHistories.current_page', 1)
+                ->where('loginHistories.total', 15)
+            );
+
+        // Page 2
+        $this->actingAs($user)
+            ->get('/profile?login_page=2')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Profile/Edit')
+                ->has('loginHistories.data', 5)
+                ->where('loginHistories.current_page', 2)
+                ->where('loginHistories.total', 15)
             );
     }
 }

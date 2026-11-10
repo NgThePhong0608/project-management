@@ -14,10 +14,12 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' }}
 
 jobs:
-  backend-lint:
-    name: PHP Lint (Pint)
+  # =========================================================================
+  # STAGE 1: Check convention / Lint / Test
+  # =========================================================================
+  check-convention-lint-test:
+    name: Check convention / Lint / Test
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -26,80 +28,45 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: "8.5"
-          extensions: mbstring, xml, ctype, iconv
+          extensions: mbstring, sqlite, pdo_sqlite, gd, fileinfo, xml, ctype, iconv
           coverage: none
-
-      - name: Install Composer Dependencies
-        run: composer install --prefer-dist --no-progress --no-interaction
-
-      - name: Run Pint (Check style)
-        run: ./vendor/bin/pint --test
-
-  frontend-lint:
-    name: Frontend Lint (Prettier)
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: "npm"
-
-      - name: Install NPM Dependencies
-        run: npm ci
-
-      - name: Run Prettier check
-        run: npm run lint
-
-  tests:
-    name: Run Tests & Build
-    runs-on: ubuntu-latest
-    needs: [backend-lint, frontend-lint]
-    if: github.event_name == 'pull_request'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: "8.5"
-          extensions: mbstring, sqlite, pdo_sqlite, gd, fileinfo
-          coverage: none
 
       - name: Prepare Environment
         run: |
           cp .env.example .env
           sed -i 's/FILESYSTEM_DISK=.*/FILESYSTEM_DISK=public/' .env
 
-      - name: Install Composer Dependencies
-        run: composer install --prefer-dist --no-progress --no-interaction
+      - name: Install Dependencies
+        run: |
+          composer install --prefer-dist --no-progress --no-interaction
+          npm ci
+          php artisan key:generate
 
-      - name: Generate App Key
-        run: php artisan key:generate
+      - name: Check Backend Convention (Pint)
+        run: ./vendor/bin/pint --test
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: "npm"
-
-      - name: Install NPM Dependencies
-        run: npm ci
+      - name: Check Frontend Code Style (Prettier)
+        run: npm run lint
 
       - name: Build Frontend Assets
         run: npm run build
 
-      - name: Run PHPUnit Tests
+      - name: Run Unit & Feature Tests
         run: php artisan test
 
-  build-and-push:
-    name: Build & Push Docker Images
+  # =========================================================================
+  # STAGE 2: Build Docker Image
+  # =========================================================================
+  build-docker-image:
+    name: Build Docker Image
     runs-on: ubuntu-latest
+    needs: [check-convention-lint-test]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     steps:
       - name: Checkout code
@@ -114,7 +81,7 @@ jobs:
       - name: Install NPM Dependencies
         run: npm ci
 
-      - name: Build Frontend Assets
+      - name: Build Production Frontend Assets
         run: npm run build
         env:
           VITE_APP_NAME: ${{ secrets.VITE_APP_NAME }}
@@ -123,6 +90,34 @@ jobs:
           VITE_REVERB_PORT: ${{ secrets.VITE_REVERB_PORT }}
           VITE_REVERB_SCHEME: ${{ secrets.VITE_REVERB_SCHEME }}
 
+      - name: Build Docker Images (PHP App & Nginx)
+        run: |
+          echo "🔨 Building pm-app image..."
+          docker build -t pm-app:${{ github.sha }} -t pm-app:latest -f ./docker/php/Dockerfile.prod .
+          
+          echo "🔨 Building pm-nginx image..."
+          docker build -t pm-nginx:${{ github.sha }} -t pm-nginx:latest -f ./docker/nginx/Dockerfile.prod .
+
+          echo "📦 Archiving Docker images for push stage..."
+          mkdir -p /tmp/docker-images
+          docker save pm-app:${{ github.sha }} pm-app:latest pm-nginx:${{ github.sha }} pm-nginx:latest | gzip > /tmp/docker-images/images.tar.gz
+
+      - name: Upload Docker Image Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-images-${{ github.sha }}
+          path: /tmp/docker-images/images.tar.gz
+          retention-days: 1
+
+  # =========================================================================
+  # STAGE 3: Push image lên ECR với tag commit SHA
+  # =========================================================================
+  push-image-ecr:
+    name: Push image lên ECR với tag commit SHA
+    runs-on: ubuntu-latest
+    needs: [build-docker-image]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    steps:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -134,38 +129,44 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and push PHP App image
-        uses: docker/build-push-action@v5
+      - name: Download Docker Image Artifact
+        uses: actions/download-artifact@v4
         with:
-          context: .
-          file: ./docker/php/Dockerfile.prod
-          push: true
-          tags: |
-            ${{ steps.login-ecr.outputs.registry }}/pm-app:latest
-            ${{ steps.login-ecr.outputs.registry }}/pm-app:${{ github.sha }}
-          cache-from: type=gha,scope=pm-app
-          cache-to: type=gha,mode=max,scope=pm-app
+          name: docker-images-${{ github.sha }}
+          path: /tmp/docker-images
 
-      - name: Build and push Nginx image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./docker/nginx/Dockerfile.prod
-          push: true
-          tags: |
-            ${{ steps.login-ecr.outputs.registry }}/pm-nginx:latest
-            ${{ steps.login-ecr.outputs.registry }}/pm-nginx:${{ github.sha }}
-          cache-from: type=gha,scope=pm-nginx
-          cache-to: type=gha,mode=max,scope=pm-nginx
+      - name: Load & Tag Images for Amazon ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          echo "📦 Unpacking Docker images..."
+          gunzip -c /tmp/docker-images/images.tar.gz | docker load
 
-  deploy:
-    name: Deploy to Amazon ECS
+          echo "🏷️ Tagging images with commit SHA (${{ github.sha }}) and latest..."
+          docker tag pm-app:${{ github.sha }} $ECR_REGISTRY/pm-app:${{ github.sha }}
+          docker tag pm-app:latest $ECR_REGISTRY/pm-app:latest
+          docker tag pm-nginx:${{ github.sha }} $ECR_REGISTRY/pm-nginx:${{ github.sha }}
+          docker tag pm-nginx:latest $ECR_REGISTRY/pm-nginx:latest
+
+          echo "🚀 Pushing pm-app to Amazon ECR..."
+          docker push $ECR_REGISTRY/pm-app:${{ github.sha }}
+          docker push $ECR_REGISTRY/pm-app:latest
+
+          echo "🚀 Pushing pm-nginx to Amazon ECR..."
+          docker push $ECR_REGISTRY/pm-nginx:${{ github.sha }}
+          docker push $ECR_REGISTRY/pm-nginx:latest
+          echo "✅ Pushed images to ECR successfully."
+
+  # =========================================================================
+  # STAGE 4: Register new Task Definition
+  # =========================================================================
+  register-task-definition:
+    name: Register new Task Definition
     runs-on: ubuntu-latest
-    needs: [build-and-push]
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    needs: [push-image-ecr]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    outputs:
+      task_def_arn: ${{ steps.render-task-def.outputs.task_def_arn }}
     steps:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -182,7 +183,6 @@ jobs:
         run: |
           echo "🔄 Syncing .env from SSM Parameter Store (/pm-app/dev/env) to EC2 host..."
           
-          # Discover EC2 instance backing the ECS cluster
           CONTAINER_INSTANCE_ARN=$(aws ecs list-container-instances \
             --cluster pm-cluster \
             --query "containerInstanceArns[0]" \
@@ -197,7 +197,6 @@ jobs:
             
             echo "Target EC2 Instance: $INSTANCE_ID"
             
-            # Execute SSM run command to pull latest decrypted .env from Parameter Store
             COMMAND_ID=$(aws ssm send-command \
               --instance-ids "$INSTANCE_ID" \
               --document-name "AWS-RunShellScript" \
@@ -216,14 +215,13 @@ jobs:
             echo "⚠️ No active container instance found in pm-cluster. Skipping SSM sync."
           fi
 
-      - name: Register New ECS Task Definition with Git SHA
+      - name: Render and Register Task Definition revision
         id: render-task-def
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
           echo "📝 Rendering new Task Definition for pm-task with SHA: ${{ github.sha }}..."
           
-          # 1. Fetch active task definition, update images to use SHA tag, strip metadata
           aws ecs describe-task-definition \
             --task-definition pm-task \
             --query "taskDefinition" | \
@@ -236,7 +234,6 @@ jobs:
                   else . end
                 ))' > task-def-${{ github.sha }}.json
           
-          # 2. Register new task definition revision on ECS
           NEW_TASK_DEF_ARN=$(aws ecs register-task-definition \
             --cli-input-json file://task-def-${{ github.sha }}.json \
             --query "taskDefinition.taskDefinitionArn" \
@@ -245,12 +242,30 @@ jobs:
           echo "✅ Registered new Task Definition: $NEW_TASK_DEF_ARN"
           echo "task_def_arn=$NEW_TASK_DEF_ARN" >> $GITHUB_OUTPUT
 
-      - name: Trigger ECS Deployment & Validate Rollout
+  # =========================================================================
+  # STAGE 5: Update ECS Service
+  # =========================================================================
+  update-ecs-service:
+    name: Update ECS Service
+    runs-on: ubuntu-latest
+    needs: [register-task-definition]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    outputs:
+      deployment_id: ${{ steps.update-service.outputs.deployment_id }}
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-southeast-1
+
+      - name: Trigger Rolling ECS Service Update
+        id: update-service
         run: |
-          NEW_TASK_DEF_ARN="${{ steps.render-task-def.outputs.task_def_arn }}"
+          NEW_TASK_DEF_ARN="${{ needs.register-task-definition.outputs.task_def_arn }}"
           echo "🚀 Updating Amazon ECS service (pm-cluster / pm-service) to new revision: $NEW_TASK_DEF_ARN..."
           
-          # 1. Trigger deployment with new Task Definition (native ECS rolling rollout without --force)
           DEPLOYMENT_ID=$(aws ecs update-service \
             --cluster pm-cluster \
             --service pm-service \
@@ -259,18 +274,37 @@ jobs:
             --output text)
 
           echo "Deployment ID: $DEPLOYMENT_ID"
+          echo "deployment_id=$DEPLOYMENT_ID" >> $GITHUB_OUTPUT
 
-          # 2. Wait 15s for ECS to register the new deployment and transition state
+  # =========================================================================
+  # STAGE 6: Wait và kiểm tra deployment status
+  # =========================================================================
+  wait-and-verify-deployment:
+    name: Wait và kiểm tra deployment status
+    runs-on: ubuntu-latest
+    needs: [update-ecs-service]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-southeast-1
+
+      - name: Wait for Steady State & Validate Rollout
+        run: |
+          DEPLOYMENT_ID="${{ needs.update-ecs-service.outputs.deployment_id }}"
+          echo "⏳ Monitoring deployment $DEPLOYMENT_ID for pm-service..."
+
           echo "Waiting 15s for ECS to register rollout..."
           sleep 15
 
-          # 3. Wait for service to reach steady state
           echo "Waiting for service to stabilize..."
           aws ecs wait services-stable \
             --cluster pm-cluster \
             --services pm-service || true
 
-          # 4. Inspect rolloutState of the targeted deployment
           DEPLOY_INFO=$(aws ecs describe-services \
             --cluster pm-cluster \
             --services pm-service \
@@ -285,7 +319,6 @@ jobs:
             echo "Reason: $ROLLOUT_REASON"
           fi
 
-          # 5. If deployment failed or did not reach COMPLETED -> print recent ECS events and fail pipeline
           if [ "$ROLLOUT_STATE" = "FAILED" ] || [ -z "$ROLLOUT_STATE" ]; then
             echo "❌ Deployment FAILED! Printing recent ECS service events:"
             aws ecs describe-services \
@@ -317,6 +350,3 @@ jobs:
             fi
           done
           echo "✅ CloudWatch log streams cleanup complete."
-
-
-

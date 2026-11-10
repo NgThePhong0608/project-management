@@ -24,9 +24,9 @@ class ProfileController extends Controller
         $user = $request->user();
 
         $loginHistories = $user->loginHistories()
-            ->take(15)
-            ->get()
-            ->map(fn (LoginHistory $item) => [
+            ->paginate(10, ['*'], 'login_page')
+            ->withQueryString()
+            ->through(fn (LoginHistory $item) => [
                 'id' => $item->id,
                 'event' => $item->event,
                 'ip_address' => $item->ip_address,
@@ -41,9 +41,9 @@ class ProfileController extends Controller
                 ->with('user:id,name,email,role,avatar_path')
                 ->whereHas('user', fn ($q) => $q->where('role', '!=', 'admin'))
                 ->latest('occurred_at')
-                ->take(30)
-                ->get()
-                ->map(fn (LoginHistory $item) => [
+                ->paginate(10, ['*'], 'member_login_page')
+                ->withQueryString()
+                ->through(fn (LoginHistory $item) => [
                     'id' => $item->id,
                     'event' => $item->event,
                     'ip_address' => $item->ip_address,
