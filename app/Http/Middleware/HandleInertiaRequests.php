@@ -65,6 +65,8 @@ class HandleInertiaRequests extends Middleware
                     'createTask' => $user->can('create', Task::class),
                     'manageUsers' => $user->can('viewAny', User::class),
                 ] : [],
+                'permissions' => $user ? $user->getAllPermissions()->pluck('name')->values()->all() : [],
+                'roles' => $user ? $user->getRoleNames()->values()->all() : [],
             ],
             'turnstile' => [
                 'enabled' => (bool) config('services.turnstile.enabled', true),

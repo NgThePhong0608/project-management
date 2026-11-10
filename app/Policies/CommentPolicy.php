@@ -13,7 +13,7 @@ class CommentPolicy
      */
     public function delete(User $user, Comment $comment): bool
     {
-        return ($comment->user_id === $user->id || $user->hasRole('manager'))
+        return ($comment->user_id === $user->id || $user->can('comments.delete') || $user->hasRole('admin', 'manager'))
             && $user->can('view', $comment->commentable);
     }
 }

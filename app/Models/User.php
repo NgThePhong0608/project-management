@@ -11,10 +11,13 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\HasApiTokens;
+use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable implements MustVerifyEmail
 {
-    use HasApiTokens, HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, HasRoles, Notifiable {
+        HasRoles::hasRole as spatieHasRole;
+    }
 
     public const ROLES = ['admin', 'manager', 'member'];
 
@@ -121,9 +124,25 @@ class User extends Authenticatable implements MustVerifyEmail
             ->withTimestamps();
     }
 
-    public function hasRole(string ...$roles): bool
+    public function hasRole($roles, ?string $guard = null): bool
     {
-        return in_array($this->role, $roles, true);
+        $args = func_get_args();
+        if (count($args) > 1 && ! in_array($guard, ['web', 'api', null], true)) {
+            $roles = $args;
+            $guard = null;
+        }
+
+        try {
+            if ($this->roles()->exists()) {
+                return $this->spatieHasRole($roles, $guard);
+            }
+        } catch (\Throwable $e) {
+            // Table might not exist during early migrations
+        }
+
+        $checkRoles = is_array($roles) ? $roles : explode('|', (string) $roles);
+
+        return in_array($this->role, $checkRoles, true);
     }
 
     /**
@@ -155,6 +174,16 @@ class User extends Authenticatable implements MustVerifyEmail
 
     protected static function booted(): void
     {
+        static::saved(function (User $user) {
+            if (! empty($user->role)) {
+                try {
+                    $user->syncRoles([$user->role]);
+                } catch (\Throwable $e) {
+                    // Ignore during raw migration or when roles table not yet seeded
+                }
+            }
+        });
+
         static::deleting(function (User $user): void {
             $projectIds = Project::where('created_by', $user->id)
                 ->orWhere('updated_by', $user->id)

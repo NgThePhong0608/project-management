@@ -12,7 +12,7 @@ class UserPolicy
      */
     public function viewAny(User $user): bool
     {
-        return false;
+        return $user->can('users.manage') || $user->hasRole('admin');
     }
 
     public function view(User $user, User $model): bool
@@ -22,16 +22,16 @@ class UserPolicy
 
     public function create(User $user): bool
     {
-        return false;
+        return $user->can('users.manage') || $user->hasRole('admin');
     }
 
     public function update(User $user, User $model): bool
     {
-        return false;
+        return $user->can('users.manage') || $user->hasRole('admin');
     }
 
     public function delete(User $user, User $model): bool
     {
-        return false;
+        return $user->can('users.manage') || $user->hasRole('admin');
     }
 }
