@@ -54,7 +54,7 @@ lambda/
 
 ## Packaging & Deployment (Pure Node.js)
 
-All build and packaging steps are executed using pure Node.js scripts:
+All build and packaging steps are executed using pure Node.js scripts targeting the **Node.js 22 LTS (`nodejs22.x`)** runtime:
 
 ```bash
 # 1. Package all functions into zip archives under lambda/dist/
