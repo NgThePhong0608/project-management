@@ -41,13 +41,7 @@
         "do_not_enforce_on_create": false,
         "required_status_checks": [
           {
-            "context": "PHP Lint (Pint)"
-          },
-          {
-            "context": "Frontend Lint (Prettier)"
-          },
-          {
-            "context": "Run Tests & Build"
+            "context": "Check convention / Lint / Test"
           }
         ]
       }

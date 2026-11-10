@@ -68,11 +68,9 @@ Before opening or updating a Pull Request, ensure local changes are clean, forma
    - `pullNumber`: `<PR_NUMBER>`
 2. **Required Quality Gates**:
    Wait until all active check runs reach `status: "completed"`:
-   - `PHP Lint (Pint)` -> must be `conclusion: "success"`
-   - `Frontend Lint (Prettier)` -> must be `conclusion: "success"`
-   - `Run Tests & Build` -> must be `conclusion: "success"`
+   - `Check convention / Lint / Test` -> must be `conclusion: "success"`
    - `Entire Gates` (if present) -> must be `conclusion: "success"` or `"neutral"` (no unresolved blockers)
-   - Note: `Build & Push Docker Images` and `Deploy to Amazon ECS` are expected to be `skipped` on PR runs (they only execute on `master` push after merge).
+   - Note: Docker and ECS deployment stages (`Build Docker Image`, `Push image lên ECR...`, `Register Task Definition...`, `Update ECS Service`, `Wait và kiểm tra...`) are expected to be `skipped` on PR runs (they only execute on `master` push after merge).
 3. **Polling Strategy**:
    If any check run is still `queued` or `in_progress`, use the `schedule` tool (e.g., `DurationSeconds: 30`) to wait before re-checking `get_check_runs`. Never use shell `sleep` loops.
 4. **If CI Fails**:

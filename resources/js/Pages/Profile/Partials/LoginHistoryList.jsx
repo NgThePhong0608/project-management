@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "@inertiajs/react";
+import Pagination from "@/Components/Pagination";
 import {
   ArrowRightEndOnRectangleIcon,
   ArrowLeftStartOnRectangleIcon,
@@ -57,7 +58,10 @@ export default function LoginHistoryList({
   const [roleFilter, setRoleFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const filteredHistories = histories.filter((item) => {
+  const items = Array.isArray(histories) ? histories : histories?.data || [];
+  const links = !Array.isArray(histories) ? histories?.links : null;
+
+  const filteredHistories = items.filter((item) => {
     if (showUserColumn && roleFilter !== "all") {
       if (item.user?.role !== roleFilter) return false;
     }
@@ -208,6 +212,12 @@ export default function LoginHistoryList({
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {links && links.length > 3 && (
+        <div className="flex justify-center pt-4">
+          <Pagination links={links} />
         </div>
       )}
     </section>
