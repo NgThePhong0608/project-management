@@ -45,7 +45,7 @@ services:
       - mysql-data:/var/lib/mysql
 
   node:
-    image: node:20-alpine
+    image: node:22-alpine
     profiles: ["dev"]
     user: "${UID:-1000}:${GID:-1000}"
     working_dir: /var/www

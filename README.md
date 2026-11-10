@@ -58,7 +58,7 @@ A modern, high-performance Project Management and Collaboration system built wit
 
 ### Prerequisites
 - [Docker](https://www.docker.com/) & [Docker Compose](https://docs.docker.com/compose/)
-- [Node.js 20+](https://nodejs.org/) & [NPM](https://www.npmjs.com/)
+- [Node.js 22+ (LTS)](https://nodejs.org/) & [NPM](https://www.npmjs.com/)
 - [Composer](https://getcomposer.org/) (optional, included in Docker container)
 
 ### Setup Instructions

@@ -52,7 +52,15 @@ async function deployFunctions() {
           stdio: 'inherit',
         }
       );
-      console.log(`    [Success] Deployed ${functionName}`);
+
+      // Ensure Lambda runtime is updated to Node.js 22 LTS
+      execSync(
+        `aws lambda update-function-configuration --function-name "${functionName}" --runtime "nodejs22.x" --region "${REGION}"`,
+        {
+          stdio: 'inherit',
+        }
+      );
+      console.log(`    [Success] Deployed and updated runtime (nodejs22.x) for ${functionName}`);
     } catch (err) {
       console.warn(
         `    [Notice] Could not update ${functionName} directly via AWS CLI. Either function does not exist in target AWS account, or AWS credentials are not configured.`
