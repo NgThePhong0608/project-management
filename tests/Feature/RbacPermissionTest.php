@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Models\Project;
+use App\Models\Task;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -47,6 +49,7 @@ class RbacPermissionTest extends TestCase
         $memberRole = Role::findByName('member');
         $this->assertTrue($memberRole->hasPermissionTo('tasks.view'));
         $this->assertTrue($memberRole->hasPermissionTo('notifications.view'));
+        $this->assertFalse($memberRole->hasPermissionTo('tasks.update'));
         $this->assertFalse($memberRole->hasPermissionTo('projects.create'));
     }
 
@@ -90,5 +93,76 @@ class RbacPermissionTest extends TestCase
         $this->assertContains('manager', $auth['roles']);
         $this->assertContains('projects.create', $auth['permissions']);
         $this->assertContains('tasks.create', $auth['permissions']);
+    }
+
+    public function test_profile_save_with_stale_role_does_not_resync_demoted_role(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $this->assertTrue($admin->hasRole('admin'));
+
+        // Load stale instance
+        $staleInstance = User::find($admin->id);
+
+        // Demote user via UserController::updateRole
+        $anotherAdmin = User::factory()->create(['role' => 'admin']);
+        $this->actingAs($anotherAdmin)->patch(route('user.updateRole', $admin), [
+            'role' => 'member',
+        ]);
+
+        $this->assertSame('member', $admin->fresh()->role);
+        $this->assertTrue($admin->fresh()->hasRole('member'));
+        $this->assertFalse($admin->fresh()->hasRole('admin'));
+
+        // Stale instance saves profile update (e.g. name update at ProfileController:112)
+        $staleInstance->name = 'Updated Admin Name';
+        $staleInstance->save();
+
+        // Ensure legacy role remains demoted and pivot was NOT re-synced to admin
+        $refreshed = User::find($admin->id);
+        $this->assertSame('member', $refreshed->role);
+        $this->assertFalse($refreshed->hasRole('admin'));
+        $this->assertTrue($refreshed->hasRole('member'));
+    }
+
+    public function test_member_with_seeded_permissions_cannot_update_other_members_task(): void
+    {
+        $manager = User::factory()->create(['role' => 'manager']);
+        $member = User::factory()->create(['role' => 'member']);
+        $otherMember = User::factory()->create(['role' => 'member']);
+
+        $project = Project::factory()->create(['created_by' => $manager->id, 'updated_by' => $manager->id]);
+        $project->members()->attach([$member->id, $otherMember->id]);
+
+        $ownTask = Task::factory()->create([
+            'project_id' => $project->id,
+            'assigned_user_id' => $member->id,
+            'created_by' => $manager->id,
+            'updated_by' => $manager->id,
+        ]);
+
+        $otherTask = Task::factory()->create([
+            'project_id' => $project->id,
+            'assigned_user_id' => $otherMember->id,
+            'created_by' => $manager->id,
+            'updated_by' => $manager->id,
+        ]);
+
+        // Member can update their own assigned task
+        $this->actingAs($member)->put(route('task.update', $ownTask), [
+            'name' => 'Updated Own Task',
+            'status' => 'in_progress',
+            'priority' => 'low',
+            'project_id' => $project->id,
+            'assigned_user_id' => $member->id,
+        ])->assertRedirect(route('task.index'));
+
+        // Member cannot update other member's task
+        $this->actingAs($member)->put(route('task.update', $otherTask), [
+            'name' => 'Hacked Other Task',
+            'status' => 'completed',
+            'priority' => 'high',
+            'project_id' => $project->id,
+            'assigned_user_id' => $otherMember->id,
+        ])->assertForbidden();
     }
 }

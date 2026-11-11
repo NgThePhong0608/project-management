@@ -79,7 +79,6 @@ class RolesAndPermissionsSeeder extends Seeder
         $memberRole->syncPermissions([
             'projects.view',
             'tasks.view',
-            'tasks.update',
             'users.view',
             'comments.create',
             'notifications.view',

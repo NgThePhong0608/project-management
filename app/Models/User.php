@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
@@ -175,12 +176,14 @@ class User extends Authenticatable implements MustVerifyEmail
     protected static function booted(): void
     {
         static::saved(function (User $user) {
-            if (! empty($user->role)) {
-                try {
-                    $user->syncRoles([$user->role]);
-                } catch (\Throwable $e) {
-                    // Ignore during raw migration or when roles table not yet seeded
-                }
+            if ($user->wasChanged('role') || ($user->wasRecentlyCreated && ! empty($user->role))) {
+                DB::transaction(function () use ($user) {
+                    try {
+                        $user->syncRoles([$user->role]);
+                    } catch (\Throwable $e) {
+                        // Ignore during raw migration or when roles table not yet seeded
+                    }
+                });
             }
         });
 
