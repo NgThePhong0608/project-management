@@ -32,6 +32,16 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->respond(function (SymfonyResponse $response, Throwable $exception, Request $request) {
             $status = $response->getStatusCode();
 
+            if ($status === 419) {
+                if ($request->expectsJson() && ! $request->header('X-Inertia')) {
+                    return $response;
+                }
+
+                return back()->with([
+                    'status' => 'Your session has expired. Please try again.',
+                ]);
+            }
+
             if (in_array($status, [401, 403, 404, 500, 503], true)) {
                 if ($request->expectsJson() && ! $request->header('X-Inertia')) {
                     return $response;

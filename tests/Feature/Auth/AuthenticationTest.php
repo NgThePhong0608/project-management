@@ -5,6 +5,8 @@ namespace Tests\Feature\Auth;
 use App\Models\User;
 use App\Providers\RouteServiceProvider;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Session\TokenMismatchException;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 class AuthenticationTest extends TestCase
@@ -51,5 +53,34 @@ class AuthenticationTest extends TestCase
 
         $this->assertGuest();
         $response->assertRedirect('/');
+    }
+
+    public function test_expired_session_or_csrf_mismatch_redirects_back_with_status_message(): void
+    {
+        Route::post('/test-csrf-419', function () {
+            throw new TokenMismatchException;
+        });
+
+        $response = $this->from('/login')->post('/test-csrf-419', [
+            'email' => 'test@example.com',
+            'password' => 'secret',
+        ]);
+
+        $response->assertRedirect('/login');
+        $response->assertSessionHas('status', 'Your session has expired. Please try again.');
+    }
+
+    public function test_csrf_mismatch_on_api_json_request_returns_419(): void
+    {
+        Route::post('/test-csrf-419-api', function () {
+            throw new TokenMismatchException;
+        });
+
+        $response = $this->postJson('/test-csrf-419-api', [
+            'email' => 'test@example.com',
+            'password' => 'secret',
+        ]);
+
+        $response->assertStatus(419);
     }
 }
