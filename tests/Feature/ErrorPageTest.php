@@ -41,3 +41,4 @@ class ErrorPageTest extends TestCase
         $response->assertUnauthorized();
     }
 }
+
