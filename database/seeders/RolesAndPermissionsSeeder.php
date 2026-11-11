@@ -43,6 +43,9 @@ class RolesAndPermissionsSeeder extends Seeder
             // Comments
             'comments.create',
             'comments.delete',
+
+            // Notifications
+            'notifications.view',
         ];
 
         foreach ($permissions as $permissionName) {
@@ -69,6 +72,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'users.view',
             'comments.create',
             'comments.delete',
+            'notifications.view',
         ]);
 
         $memberRole = Role::findOrCreate('member');
@@ -78,6 +82,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'tasks.update',
             'users.view',
             'comments.create',
+            'notifications.view',
         ]);
 
         // 3. Migrate and synchronize existing users with Spatie roles

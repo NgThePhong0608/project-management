@@ -32,6 +32,7 @@ class RbacPermissionTest extends TestCase
             'tasks.quick_assign', 'tasks.ai',
             'users.view', 'users.manage',
             'comments.create', 'comments.delete',
+            'notifications.view',
         ];
 
         foreach ($expectedPermissions as $perm) {
@@ -45,6 +46,7 @@ class RbacPermissionTest extends TestCase
 
         $memberRole = Role::findByName('member');
         $this->assertTrue($memberRole->hasPermissionTo('tasks.view'));
+        $this->assertTrue($memberRole->hasPermissionTo('notifications.view'));
         $this->assertFalse($memberRole->hasPermissionTo('projects.create'));
     }
 

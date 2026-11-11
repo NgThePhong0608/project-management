@@ -2,9 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Project;
+use App\Models\Task;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Notifications\DatabaseNotification;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -15,6 +19,8 @@ class NotificationController extends Controller
      */
     public function index(Request $request): JsonResponse|Response
     {
+        $this->authorize('viewAny', DatabaseNotification::class);
+
         $user = $request->user();
 
         if ($request->wantsJson() && ! $request->header('X-Inertia')) {
@@ -82,19 +88,37 @@ class NotificationController extends Controller
      */
     public function show(Request $request, string $id): Response|RedirectResponse
     {
+        $this->authorize('viewAny', DatabaseNotification::class);
+
         $notification = $request->user()->notifications()->findOrFail($id);
+        $this->authorize('view', $notification);
 
         if (is_null($notification->read_at)) {
             $notification->markAsRead();
         }
 
-        if (! empty($notification->data['target_url'])) {
-            return redirect($notification->data['target_url']);
+        $user = $request->user();
+        $wantsDetail = $request->query('view') === 'detail' || $request->boolean('detail', false);
+
+        if (! $wantsDetail) {
+            if (! empty($notification->data['target_url'])) {
+                if ($this->canAccessTarget($user, $notification)) {
+                    return redirect($notification->data['target_url']);
+                }
+            } elseif (! empty($notification->data['task_id'])) {
+                $task = Task::find($notification->data['task_id']);
+                if ($task && $user->can('view', $task)) {
+                    return redirect()->route('task.show', $notification->data['task_id']);
+                }
+            }
         }
 
-        if (! empty($notification->data['task_id'])) {
-            return redirect()->route('task.show', $notification->data['task_id']);
+        $targetUrl = $notification->data['target_url'] ?? null;
+        if (! $targetUrl && ! empty($notification->data['task_id'])) {
+            $targetUrl = route('task.show', $notification->data['task_id'], false);
         }
+
+        $canAccess = $this->canAccessTarget($user, $notification);
 
         return Inertia::render('Notification/Show', [
             'notification' => [
@@ -105,7 +129,36 @@ class NotificationController extends Controller
                 'created_at' => $notification->created_at->format('Y-m-d H:i:s'),
                 'created_at_human' => $notification->created_at->diffForHumans(),
             ],
+            'targetUrl' => $canAccess ? $targetUrl : null,
+            'isTargetAccessible' => $canAccess,
         ]);
+    }
+
+    protected function canAccessTarget(User $user, DatabaseNotification $notification): bool
+    {
+        $data = $notification->data ?? [];
+
+        if (! empty($data['task_id'])) {
+            $task = Task::find($data['task_id']);
+
+            return (bool) ($task && $user->can('view', $task));
+        }
+
+        if (! empty($data['target_url'])) {
+            $url = (string) $data['target_url'];
+            if (preg_match('#/task/(\d+)#', $url, $matches)) {
+                $task = Task::find($matches[1]);
+
+                return (bool) ($task && $user->can('view', $task));
+            }
+            if (preg_match('#/project/(\d+)#', $url, $matches)) {
+                $project = Project::find($matches[1]);
+
+                return (bool) ($project && $user->can('view', $project));
+            }
+        }
+
+        return false;
     }
 
     /**
