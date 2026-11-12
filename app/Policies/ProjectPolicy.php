@@ -37,11 +37,11 @@ class ProjectPolicy
     }
 
     /**
-     * Only admin (resolved via Gate::before or explicit check) can quick-assign a project.
+     * Only admin (or users with 'projects.quick_assign') can quick-assign a project.
      */
     public function quickAssign(User $user, Project $project): bool
     {
-        return $user->hasRole('admin');
+        return $user->can('projects.quick_assign') || $user->hasRole('admin');
     }
 
     /**
@@ -49,7 +49,7 @@ class ProjectPolicy
      */
     public function create(User $user): bool
     {
-        return $user->hasRole('manager');
+        return $user->can('projects.create') || $user->hasRole('admin', 'manager');
     }
 
     /**
@@ -61,7 +61,7 @@ class ProjectPolicy
             return false;
         }
 
-        return $user->hasRole('manager');
+        return $user->can('projects.update') || $user->hasRole('admin', 'manager');
     }
 
     /**
@@ -73,6 +73,6 @@ class ProjectPolicy
             return false;
         }
 
-        return $user->hasRole('manager');
+        return $user->can('projects.delete') || $user->hasRole('admin', 'manager');
     }
 }

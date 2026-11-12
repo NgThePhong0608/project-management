@@ -24,15 +24,11 @@ class TaskPolicy
     }
 
     /**
-     * Only admin or a manager who can view the task can quick-assign the task.
+     * Only users with 'tasks.quick_assign' (or manager/admin) who can view the task can quick-assign.
      */
     public function quickAssign(User $user, Task $task): bool
     {
-        if ($user->hasRole('admin')) {
-            return true;
-        }
-
-        return $user->hasRole('manager') && $this->view($user, $task);
+        return ($user->can('tasks.quick_assign') || $user->hasRole('admin', 'manager')) && $this->view($user, $task);
     }
 
     /**
@@ -40,7 +36,7 @@ class TaskPolicy
      */
     public function create(User $user): bool
     {
-        return $user->hasRole('manager');
+        return $user->can('tasks.create') || $user->hasRole('admin', 'manager');
     }
 
     /**
@@ -52,7 +48,7 @@ class TaskPolicy
             return false;
         }
 
-        return $user->hasRole('manager') || $task->assigned_user_id === $user->id;
+        return $user->can('tasks.update') || $user->hasRole('admin', 'manager') || $task->assigned_user_id === $user->id;
     }
 
     /**
@@ -64,6 +60,6 @@ class TaskPolicy
             return false;
         }
 
-        return $user->hasRole('manager');
+        return $user->can('tasks.delete') || $user->hasRole('admin', 'manager');
     }
 }

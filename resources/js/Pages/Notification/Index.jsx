@@ -375,6 +375,20 @@ export default function Index({
                           size="icon"
                           className="h-8 w-8 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                           title="Open details"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (
+                              item.id &&
+                              !String(item.id).startsWith("realtime-")
+                            ) {
+                              router.visit(
+                                route("notifications.show", {
+                                  id: item.id,
+                                  detail: 1,
+                                }),
+                              );
+                            }
+                          }}
                         >
                           <ExternalLink className="h-4 w-4" />
                         </Button>

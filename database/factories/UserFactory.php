@@ -34,6 +34,19 @@ class UserFactory extends Factory
         ];
     }
 
+    public function configure(): static
+    {
+        return $this->afterCreating(function (User $user) {
+            if (! empty($user->role)) {
+                try {
+                    $user->syncRoles([$user->role]);
+                } catch (\Throwable $e) {
+                    // Ignore if roles table not yet seeded
+                }
+            }
+        });
+    }
+
     /**
      * Indicate that the model's email address should be unverified.
      */

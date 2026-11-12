@@ -9,7 +9,12 @@ import {
 import { Button } from "@/Components/ui/button";
 import { ArrowLeft } from "lucide-react";
 
-export default function Show({ auth, notification }) {
+export default function Show({
+  auth,
+  notification,
+  targetUrl,
+  isTargetAccessible = false,
+}) {
   const data = notification?.data || {};
   const isSecurity = data.type === "security";
   const title = data.title || data.task_name || "Notification Detail";
@@ -166,6 +171,31 @@ export default function Show({ auth, notification }) {
                   >
                     Go to Profile Settings
                   </Link>
+                </div>
+              )}
+
+              {/* Action Footer for Task / Project Notifications */}
+              {!isSecurity && (data.task_id || data.target_url) && (
+                <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between flex-wrap gap-4">
+                  {targetUrl && isTargetAccessible ? (
+                    <>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        View the related item in your workspace.
+                      </p>
+                      <Link
+                        href={targetUrl}
+                        className="bg-indigo-600 py-2 px-4 text-sm font-medium text-white rounded-lg shadow transition-all hover:bg-indigo-700"
+                      >
+                        {data.task_id ? "View Task" : "View Project"}
+                      </Link>
+                    </>
+                  ) : (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 py-2 px-3 rounded-lg border border-amber-200 dark:border-amber-900/60 w-full">
+                      The related project or task is no longer directly
+                      accessible, or your account does not have permission to
+                      view it.
+                    </p>
+                  )}
                 </div>
               )}
             </div>

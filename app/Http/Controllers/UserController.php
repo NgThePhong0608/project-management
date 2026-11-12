@@ -9,6 +9,7 @@ use App\Http\Resources\UserResource;
 use App\Models\Task;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class UserController extends Controller
@@ -137,7 +138,11 @@ class UserController extends Controller
         } else {
             unset($data['password']);
         }
-        $user->update($data);
+
+        DB::transaction(function () use ($user, $data) {
+            $lockedUser = User::where('id', $user->id)->lockForUpdate()->first();
+            $lockedUser->update($data);
+        });
 
         return to_route('user.index')
             ->with('success', 'User '.'"'.$data['name'].'"'.' was updated');
@@ -165,7 +170,10 @@ class UserController extends Controller
             'role' => ['required', Rule::in(User::ROLES)],
         ]);
 
-        $user->update(['role' => $data['role']]);
+        DB::transaction(function () use ($user, $data) {
+            $lockedUser = User::where('id', $user->id)->lockForUpdate()->first();
+            $lockedUser->update(['role' => $data['role']]);
+        });
 
         return back()->with('success', "Role for \"{$user->name}\" was updated to {$data['role']}!");
     }
