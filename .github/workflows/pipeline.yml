@@ -57,3 +57,27 @@ jobs:
     uses: ./.github/workflows/ci.yml
     secrets: inherit
 
+  # Preserve the exact status check name required by .github/rulesets/protect-master.json
+  # so both infra-only PRs and app PRs report the expected check without blocking merges.
+  required-status-check:
+    name: Check convention / Lint / Test
+    needs: [detect-changes, infra-ci, app-cicd]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Evaluate pipeline results
+        run: |
+          if [[ "${{ needs.detect-changes.result }}" != "success" ]]; then
+            echo "Path detection failed."
+            exit 1
+          fi
+          if [[ "${{ needs.infra-ci.result }}" == "failure" || "${{ needs.infra-ci.result }}" == "cancelled" ]]; then
+            echo "Infra CI failed or was cancelled."
+            exit 1
+          fi
+          if [[ "${{ needs.app-cicd.result }}" == "failure" || "${{ needs.app-cicd.result }}" == "cancelled" ]]; then
+            echo "App CI/CD failed or was cancelled."
+            exit 1
+          fi
+          echo "All applicable pipeline checks passed."
+
