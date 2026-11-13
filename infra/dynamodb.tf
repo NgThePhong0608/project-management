@@ -23,5 +23,10 @@ resource "aws_dynamodb_table" "chat_messages" {
   point_in_time_recovery {
     enabled = false
   }
+
+  lifecycle {
+    # Guard stateful chat history against accidental replacement or deletion
+    prevent_destroy = true
+  }
 }
 

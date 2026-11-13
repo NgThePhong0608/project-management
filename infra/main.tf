@@ -1,5 +1,6 @@
 terraform {
-  required_version = ">= 1.5.0"
+  # Terraform >= 1.7.0 is required for variable expressions inside import blocks
+  required_version = ">= 1.7.0"
 
   required_providers {
     aws = {
