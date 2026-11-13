@@ -25,3 +25,8 @@ terraform.rc
 
 # Plan files
 tfplan*
+
+# Local SSM environment files containing secrets
+.env.ssm
+.env.*
+!.env.*.example

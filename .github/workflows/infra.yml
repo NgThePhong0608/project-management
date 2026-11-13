@@ -1,0 +1,32 @@
+name: Infra CI
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  terraform-check:
+    name: Terraform Format & Validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.11"
+
+      - name: Check Terraform formatting
+        run: terraform fmt -check -recursive
+
+      - name: Initialize Terraform (without remote backend)
+        run: terraform init -backend=false
+
+      - name: Validate Terraform configuration
+        run: terraform validate
+        # ponytail: Add terraform plan/apply once S3 remote backend and CI secret injection are enabled
+
