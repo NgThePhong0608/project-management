@@ -1,0 +1,83 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - "main"
+      - "master"
+  pull_request:
+    branches: ["main", "master"]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' }}
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  detect-changes:
+    name: Detect Changed Paths
+    runs-on: ubuntu-latest
+    outputs:
+      infra: ${{ steps.filter.outputs.infra }}
+      app: ${{ steps.filter.outputs.app }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Filter changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            infra:
+              - "infra/**"
+            app:
+              - "**"
+              - "!infra/**"
+              - "!**.md"
+
+  infra-ci:
+    name: Infra CI
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.infra == 'true'
+    uses: ./.github/workflows/infra.yml
+
+  app-cicd:
+    name: App CI/CD
+    needs: [detect-changes, infra-ci]
+    # Run after infra-ci succeeds, or immediately if infra-ci was skipped
+    if: |
+      always() &&
+      needs.detect-changes.outputs.app == 'true' &&
+      (needs.infra-ci.result == 'success' || needs.infra-ci.result == 'skipped')
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+
+  # Preserve the exact status check name required by .github/rulesets/protect-master.json
+  # so both infra-only PRs and app PRs report the expected check without blocking merges.
+  required-status-check:
+    name: Check convention / Lint / Test
+    needs: [detect-changes, infra-ci, app-cicd]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Evaluate pipeline results
+        run: |
+          if [[ "${{ needs.detect-changes.result }}" != "success" ]]; then
+            echo "Path detection failed."
+            exit 1
+          fi
+          if [[ "${{ needs.infra-ci.result }}" == "failure" || "${{ needs.infra-ci.result }}" == "cancelled" ]]; then
+            echo "Infra CI failed or was cancelled."
+            exit 1
+          fi
+          if [[ "${{ needs.app-cicd.result }}" == "failure" || "${{ needs.app-cicd.result }}" == "cancelled" ]]; then
+            echo "App CI/CD failed or was cancelled."
+            exit 1
+          fi
+          echo "All applicable pipeline checks passed."
+

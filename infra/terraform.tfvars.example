@@ -1,0 +1,15 @@
+# Example Terraform variables file
+# Copy this file to "terraform.tfvars" to override defaults locally.
+# Notice: terraform.tfvars is ignored by git to protect environment specifics.
+
+aws_region          = "ap-southeast-1"
+environment         = "dev"
+app_name            = "pm"
+ecs_cluster_name    = "pm-cluster"
+ecs_service_name    = "pm-service"
+ecs_task_family     = "pm-task"
+log_group_name         = "/pm-app/dev"
+dynamodb_table_name    = "chat_messages"
+ssm_env_parameter_name = "/pm-app/dev/env"
+app_env_file           = ".env.ssm"
+
