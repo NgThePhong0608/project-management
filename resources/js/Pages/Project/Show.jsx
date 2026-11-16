@@ -7,6 +7,7 @@ import TasksKanban from "@/Components/TasksKanban";
 import TaskViewToggle from "@/Components/TaskViewToggle";
 import ProjectMembers from "@/Components/ProjectMembers";
 import CommentSection from "@/Components/CommentSection";
+import MarkdownRenderer from "@/Components/MarkdownRenderer";
 import { Button } from "@/Components/ui/button";
 import { ArrowLeft, Pencil } from "lucide-react";
 
@@ -127,9 +128,9 @@ const Show = ({
                   <label className="font-bold text-sm text-gray-500 dark:text-gray-400">
                     Project Description
                   </label>
-                  <p className="mt-1 text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
-                    {project.description || "No description provided."}
-                  </p>
+                  <div className="mt-1.5">
+                    <MarkdownRenderer content={project.description} />
+                  </div>
                 </div>
               </div>
             </div>
