@@ -50,6 +50,14 @@ class TaskResource extends JsonResource
                 'created_at' => $att->created_at?->format('Y-m-d H:i:s'),
                 'user' => $att->user ? ['id' => $att->user->id, 'name' => $att->user->name] : null,
             ])->values()),
+            'subtasks' => $this->whenLoaded('subtasks', fn () => $this->subtasks->map(fn ($s) => [
+                'id' => $s->id,
+                'title' => $s->title,
+                'is_completed' => (bool) $s->is_completed,
+                'position' => $s->position,
+            ])->values()),
+            'subtasks_count' => $this->whenCounted('subtasks'),
+            'completed_subtasks_count' => $this->whenHas('completed_subtasks_count'),
             'can' => [
                 'update' => $request->user()?->can('update', $this->resource),
                 'delete' => $request->user()?->can('delete', $this->resource),

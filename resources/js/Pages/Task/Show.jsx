@@ -1,5 +1,6 @@
 import React from "react";
 import CommentSection from "@/Components/CommentSection";
+import TaskSubtasks from "@/Components/TaskSubtasks";
 import TaskActivityLog from "@/Components/TaskActivityLog";
 import TaskAttachments from "@/Components/TaskAttachments";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
@@ -145,6 +146,12 @@ const Show = ({ auth, task, comments, mentionable }) => {
                 <label className="font-bold text-lg">Task Description</label>
                 <p className="mt-1">{task.description}</p>
               </div>
+
+              <TaskSubtasks
+                taskId={task.id}
+                subtasks={task.subtasks || []}
+                canUpdate={Boolean(task.can?.update)}
+              />
 
               <TaskAttachments
                 taskId={task.id}

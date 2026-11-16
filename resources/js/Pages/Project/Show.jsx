@@ -3,6 +3,8 @@ import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head, Link } from "@inertiajs/react";
 import { PROJECT_STATUS_CLASS_MAP, PROJECT_STATUS_TEXT_MAP } from "@/constants";
 import TasksTable from "../Task/TasksTable";
+import TasksKanban from "@/Components/TasksKanban";
+import TaskViewToggle from "@/Components/TaskViewToggle";
 import ProjectMembers from "@/Components/ProjectMembers";
 import CommentSection from "@/Components/CommentSection";
 import { Button } from "@/Components/ui/button";
@@ -145,12 +147,23 @@ const Show = ({
           {/* Tasks Table */}
           <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
             <div className="p-6 text-gray-900 dark:text-gray-100">
-              <h3 className="text-lg font-bold mb-4">Project Tasks</h3>
-              <TasksTable
-                tasks={tasks}
-                queryParams={queryParams}
-                hideProjectColumn={true}
-              />
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold">Project Tasks</h3>
+                <TaskViewToggle
+                  routeName="project.show"
+                  routeParams={{ project: project.id }}
+                  queryParams={queryParams}
+                />
+              </div>
+              {queryParams?.view === "kanban" ? (
+                <TasksKanban tasks={tasks} hideProjectColumn={true} />
+              ) : (
+                <TasksTable
+                  tasks={tasks}
+                  queryParams={queryParams}
+                  hideProjectColumn={true}
+                />
+              )}
             </div>
           </div>
 

@@ -160,4 +160,3 @@ class TaskActivityAndAttachmentTest extends TestCase
             ->assertNotFound();
     }
 }
-

@@ -72,6 +72,11 @@ class Task extends Model
         return $this->hasMany(TaskAttachment::class)->latest('created_at');
     }
 
+    public function subtasks(): HasMany
+    {
+        return $this->hasMany(TaskSubtask::class)->orderBy('position')->orderBy('id');
+    }
+
     public function isParticipant(User $user): bool
     {
         if ($user->hasRole('admin')) {

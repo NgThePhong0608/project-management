@@ -20,6 +20,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class TaskController extends Controller
 {
@@ -72,7 +73,11 @@ class TaskController extends Controller
     {
         $query = Task::query()
             ->visibleTo(auth()->user())
-            ->with(['project.members:id,name,email,role,avatar_path', 'project.createdBy', 'assignedUser', 'createdBy', 'updatedBy']);
+            ->with(['project.members:id,name,email,role,avatar_path', 'project.createdBy', 'assignedUser', 'createdBy', 'updatedBy'])
+            ->withCount([
+                'subtasks',
+                'subtasks as completed_subtasks_count' => fn ($q) => $q->where('is_completed', true),
+            ]);
 
         $sortField = request('sort_field', 'created_at');
         $sortDirection = request('sort_direction', 'desc');
@@ -82,7 +87,12 @@ class TaskController extends Controller
         if (request('status')) {
             $query->where('status', request('status'));
         }
-        $tasks = $query->orderBy($sortField, $sortDirection)->paginate(30)->onEachSide(1);
+
+        $perPage = request('view') === 'kanban' ? 60 : 30;
+        $tasks = $query->orderBy($sortField, $sortDirection)
+            ->paginate($perPage)
+            ->withQueryString()
+            ->onEachSide(1);
 
         return inertia('Task/Index', [
             'tasks' => TaskResource::collection($tasks),
@@ -111,6 +121,8 @@ class TaskController extends Controller
     public function store(StoreTaskRequest $request)
     {
         $data = $request->validated();
+        $subtasks = $data['subtasks'] ?? [];
+        unset($data['subtasks']);
         /** @var $image \Illuminate\Http\UploadedFile */
         $image = $data['image'] ?? null;
         $data['created_by'] = auth()->id();
@@ -133,6 +145,18 @@ class TaskController extends Controller
             'created_at' => now(),
         ]);
 
+        foreach (array_values($subtasks) as $index => $title) {
+            $trimmed = trim($title);
+            if ($trimmed === '') {
+                continue;
+            }
+            $task->subtasks()->create([
+                'title' => $trimmed,
+                'is_completed' => false,
+                'position' => $index + 1,
+                'created_by' => auth()->id(),
+            ]);
+        }
         $this->clearDashboardCache($task->assigned_user_id);
 
         if ($task->assigned_user_id) {
@@ -149,7 +173,7 @@ class TaskController extends Controller
      */
     public function show(Task $task)
     {
-        $task->load('project.members', 'project.createdBy', 'assignedUser', 'createdBy', 'activities.user', 'attachments.user');
+        $task->load('project.members', 'project.createdBy', 'assignedUser', 'createdBy', 'subtasks', 'activities.user', 'attachments.user');
         $mentionable = $task->project->members
             ->concat([$task->project->createdBy, $task->assignedUser, $task->createdBy])
             ->filter()->unique('id')
@@ -302,5 +326,45 @@ class TaskController extends Controller
         }
 
         return back()->with('success', "Task \"{$task->name}\" was assigned to {$newAssignee->name}!");
+    }
+
+    /**
+     * Update a task's status (used by Kanban drag-and-drop and quick status controls).
+     */
+    public function updateStatus(Request $request, Task $task)
+    {
+        $this->authorize('update', $task);
+
+        $data = $request->validate([
+            'status' => [
+                'required',
+                Rule::in(['pending', 'in_progress', 'completed', 'closed']),
+                function (string $attribute, mixed $value, \Closure $fail) use ($request) {
+                    if ($value === 'closed' && ! $request->user()?->hasRole('admin', 'manager')) {
+                        $fail('Only admins and managers can set task status to closed.');
+                    }
+                },
+            ],
+        ]);
+
+        $oldStatus = $task->status;
+        if ($oldStatus === $data['status']) {
+            return back();
+        }
+
+        $task->update([
+            'status' => $data['status'],
+            'updated_by' => auth()->id(),
+        ]);
+
+        TaskActivityRecorded::dispatch(
+            $task->fresh(['assignedUser', 'project']),
+            $request->user(),
+            ['status' => ['old' => $oldStatus, 'new' => $data['status']]]
+        );
+
+        $this->clearDashboardCache($task->assigned_user_id);
+
+        return back();
     }
 }
