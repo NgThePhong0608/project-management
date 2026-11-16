@@ -151,4 +151,3 @@ class TaskSubtaskAndKanbanTest extends TestCase
         $this->assertSame('closed', $task->fresh()->status);
     }
 }
-
