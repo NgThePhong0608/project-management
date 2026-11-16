@@ -6,7 +6,9 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Support\Facades\Storage;
 
 class Task extends Model
 {
@@ -29,6 +31,9 @@ class Task extends Model
     {
         static::deleting(function (Task $task): void {
             $task->comments()->delete();
+            $task->attachments()->each(function (TaskAttachment $attachment): void {
+                Storage::disk($attachment->disk)->delete($attachment->path);
+            });
         });
     }
 
@@ -55,6 +60,16 @@ class Task extends Model
     public function comments(): MorphMany
     {
         return $this->morphMany(Comment::class, 'commentable');
+    }
+
+    public function activities(): HasMany
+    {
+        return $this->hasMany(TaskActivity::class)->latest('created_at')->latest('id');
+    }
+
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(TaskAttachment::class)->latest('created_at');
     }
 
     public function isParticipant(User $user): bool

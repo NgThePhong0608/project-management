@@ -1,5 +1,7 @@
 import React from "react";
 import CommentSection from "@/Components/CommentSection";
+import TaskActivityLog from "@/Components/TaskActivityLog";
+import TaskAttachments from "@/Components/TaskAttachments";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head, Link } from "@inertiajs/react";
 import {
@@ -143,6 +145,14 @@ const Show = ({ auth, task, comments, mentionable }) => {
                 <label className="font-bold text-lg">Task Description</label>
                 <p className="mt-1">{task.description}</p>
               </div>
+
+              <TaskAttachments
+                taskId={task.id}
+                attachments={task.attachments || []}
+                canUpdate={Boolean(task.can?.update)}
+              />
+
+              <TaskActivityLog activities={task.activities || []} />
             </div>
           </div>
         </div>

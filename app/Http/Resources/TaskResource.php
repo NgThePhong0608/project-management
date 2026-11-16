@@ -35,6 +35,21 @@ class TaskResource extends JsonResource
             'project' => new ProjectResource($this->project),
             'createdBy' => new UserResource($this->createdBy),
             'updatedBy' => new UserResource($this->updatedBy),
+            'activities' => $this->whenLoaded('activities', fn () => $this->activities->map(fn ($a) => [
+                'id' => $a->id,
+                'action' => $a->action,
+                'changes' => $a->changes,
+                'created_at' => $a->created_at?->format('Y-m-d H:i:s'),
+                'user' => $a->user ? ['id' => $a->user->id, 'name' => $a->user->name] : null,
+            ])->values()),
+            'attachments' => $this->whenLoaded('attachments', fn () => $this->attachments->map(fn ($att) => [
+                'id' => $att->id,
+                'original_name' => $att->original_name,
+                'mime_type' => $att->mime_type,
+                'size' => $att->size,
+                'created_at' => $att->created_at?->format('Y-m-d H:i:s'),
+                'user' => $att->user ? ['id' => $att->user->id, 'name' => $att->user->name] : null,
+            ])->values()),
             'can' => [
                 'update' => $request->user()?->can('update', $this->resource),
                 'delete' => $request->user()?->can('delete', $this->resource),

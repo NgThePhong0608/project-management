@@ -11,6 +11,7 @@ use App\Http\Resources\TaskResource;
 use App\Http\Resources\UserResource;
 use App\Models\Project;
 use App\Models\Task;
+use App\Models\TaskActivity;
 use App\Models\User;
 use App\Notifications\TaskAssignedNotification;
 use App\Services\AwsNotificationService;
@@ -121,6 +122,17 @@ class TaskController extends Controller
             $data['image_path'] = $image->storeAs('task/'.Str::random(), $safeName);
         }
         $task = Task::create($data);
+
+        TaskActivity::create([
+            'task_id' => $task->id,
+            'user_id' => auth()->id(),
+            'action' => 'created',
+            'changes' => [
+                'name' => ['old' => null, 'new' => $task->name],
+            ],
+            'created_at' => now(),
+        ]);
+
         $this->clearDashboardCache($task->assigned_user_id);
 
         if ($task->assigned_user_id) {
@@ -137,7 +149,7 @@ class TaskController extends Controller
      */
     public function show(Task $task)
     {
-        $task->load('project.members', 'project.createdBy', 'assignedUser', 'createdBy');
+        $task->load('project.members', 'project.createdBy', 'assignedUser', 'createdBy', 'activities.user', 'attachments.user');
         $mentionable = $task->project->members
             ->concat([$task->project->createdBy, $task->assignedUser, $task->createdBy])
             ->filter()->unique('id')

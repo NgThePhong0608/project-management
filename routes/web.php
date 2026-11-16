@@ -9,6 +9,7 @@ use App\Http\Controllers\ProfileTwoFactorController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectMemberController;
 use App\Http\Controllers\TaskAiController;
+use App\Http\Controllers\TaskAttachmentController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\UserController;
 use Illuminate\Foundation\Application;
@@ -41,6 +42,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('task', TaskController::class);
     Route::patch('/task/{task}/quick-assign', [TaskController::class, 'quickAssign'])
         ->name('task.quickAssign');
+    Route::post('/task/{task}/attachments', [TaskAttachmentController::class, 'store'])
+        ->name('task.attachments.store');
+    Route::get('/task/{task}/attachments/{attachment}/download', [TaskAttachmentController::class, 'download'])
+        ->name('task.attachments.download');
+    Route::delete('/task/{task}/attachments/{attachment}', [TaskAttachmentController::class, 'destroy'])
+        ->name('task.attachments.destroy');
     Route::prefix('tasks/ai')->name('task.ai.')->group(function () {
         Route::post('/breakdown', [TaskAiController::class, 'breakdown'])->name('breakdown');
         Route::post('/enhance', [TaskAiController::class, 'enhance'])->name('enhance');
