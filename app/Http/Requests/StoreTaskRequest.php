@@ -52,6 +52,8 @@ class StoreTaskRequest extends FormRequest
                 'required',
                 Rule::in(['low', 'medium', 'high']),
             ],
+            'subtasks' => ['nullable', 'array', 'max:25'],
+            'subtasks.*' => ['required', 'string', 'max:255'],
         ];
     }
 }

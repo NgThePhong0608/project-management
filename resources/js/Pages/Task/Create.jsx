@@ -15,6 +15,7 @@ const Create = ({ auth, projects, users }) => {
   const [breakingDown, setBreakingDown] = useState(false);
   const [subtasks, setSubtasks] = useState(null);
   const [appendedSuccess, setAppendedSuccess] = useState(false);
+  const [savedAsSubtasks, setSavedAsSubtasks] = useState(false);
 
   const { data, setData, post, errors } = useForm({
     image: "",
@@ -25,6 +26,7 @@ const Create = ({ auth, projects, users }) => {
     project_id: "",
     priority: "",
     assigned_user_id: "",
+    subtasks: [],
   });
   const descriptionRef = useRef(data.description);
   descriptionRef.current = data.description;
@@ -215,6 +217,27 @@ const Create = ({ auth, projects, users }) => {
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
+                        onClick={() => {
+                          setData(
+                            "subtasks",
+                            subtasks.map((s) => s.name).filter(Boolean),
+                          );
+                          setSavedAsSubtasks(true);
+                          setTimeout(() => setSavedAsSubtasks(false), 2500);
+                        }}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md text-white bg-emerald-600 hover:bg-emerald-700 transition shadow-xs"
+                      >
+                        {savedAsSubtasks ? (
+                          <>
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Queued as Subtasks!</span>
+                          </>
+                        ) : (
+                          <span>Save as Subtasks</span>
+                        )}
+                      </button>
+                      <button
+                        type="button"
                         disabled={enhancing}
                         onClick={handleAppendSubtasks}
                         className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition shadow-xs"
@@ -265,6 +288,45 @@ const Create = ({ auth, projects, users }) => {
                             {task.priority}
                           </Badge>
                         </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {data.subtasks.length > 0 && (
+                <div className="mt-4 p-3 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                      Subtasks to create ({data.subtasks.length})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setData("subtasks", [])}
+                      className="text-xs text-gray-500 hover:text-red-500"
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                  <ul className="space-y-1 text-xs text-gray-700 dark:text-gray-300">
+                    {data.subtasks.map((title, idx) => (
+                      <li
+                        key={idx}
+                        className="flex items-center justify-between"
+                      >
+                        <span>• {title}</span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setData(
+                              "subtasks",
+                              data.subtasks.filter((_, i) => i !== idx),
+                            )
+                          }
+                          className="text-gray-400 hover:text-red-500 ml-2"
+                        >
+                          Remove
+                        </button>
                       </li>
                     ))}
                   </ul>
