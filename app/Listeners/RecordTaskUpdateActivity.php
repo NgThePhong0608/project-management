@@ -4,6 +4,7 @@ namespace App\Listeners;
 
 use App\Events\TaskActivityRecorded;
 use App\Models\Project;
+use App\Models\TaskActivity;
 use App\Models\User;
 use App\Services\CommentService;
 
@@ -33,6 +34,7 @@ class RecordTaskUpdateActivity
         }
 
         $lines = [];
+        $structuredChanges = [];
         $assigneeMentioned = false;
 
         foreach ($event->changes as $field => $diff) {
@@ -44,12 +46,14 @@ class RecordTaskUpdateActivity
                     $oldLabel = self::STATUS_LABELS[$old] ?? (string) $old;
                     $newLabel = self::STATUS_LABELS[$new] ?? (string) $new;
                     $lines[] = "- Status: `{$oldLabel}` → `{$newLabel}`";
+                    $structuredChanges['status'] = ['old' => $oldLabel, 'new' => $newLabel];
                     break;
 
                 case 'priority':
                     $oldLabel = self::PRIORITY_LABELS[$old] ?? (string) $old;
                     $newLabel = self::PRIORITY_LABELS[$new] ?? (string) $new;
                     $lines[] = "- Priority: `{$oldLabel}` → `{$newLabel}`";
+                    $structuredChanges['priority'] = ['old' => $oldLabel, 'new' => $newLabel];
                     break;
 
                 case 'assigned_user_id':
@@ -59,26 +63,31 @@ class RecordTaskUpdateActivity
                     $newText = $newUser ? "@[{$newUser->name}]({$newUser->id})" : 'Unassigned';
                     $assigneeMentioned = $newUser !== null;
                     $lines[] = "- Assigned User: {$oldText} → {$newText}";
+                    $structuredChanges['assignee'] = ['old' => $oldText, 'new' => $newUser ? $newUser->name : 'Unassigned'];
                     break;
 
                 case 'due_date':
                     $oldDate = $old ?: 'None';
                     $newDate = $new ?: 'None';
                     $lines[] = "- Due Date: `{$oldDate}` → `{$newDate}`";
+                    $structuredChanges['due_date'] = ['old' => $oldDate, 'new' => $newDate];
                     break;
 
                 case 'name':
                     $lines[] = "- Task Name: `{$old}` → `{$new}`";
+                    $structuredChanges['name'] = ['old' => $old, 'new' => $new];
                     break;
 
                 case 'project_id':
                     $oldProj = $old ? Project::find($old)?->name : 'N/A';
                     $newProj = $new ? Project::find($new)?->name : 'N/A';
                     $lines[] = "- Project: `{$oldProj}` → `{$newProj}`";
+                    $structuredChanges['project'] = ['old' => $oldProj, 'new' => $newProj];
                     break;
 
                 case 'description':
                     $lines[] = '- Description: Updated';
+                    $structuredChanges['description'] = ['old' => null, 'new' => 'Updated'];
                     break;
 
                 case 'image_path':
@@ -91,6 +100,7 @@ class RecordTaskUpdateActivity
                     } else {
                         $lines[] = '- Task Image: Removed';
                     }
+                    $structuredChanges['image'] = ['old' => $oldName, 'new' => $newName ?? 'Removed'];
                     break;
             }
         }
@@ -98,6 +108,14 @@ class RecordTaskUpdateActivity
         if (empty($lines)) {
             return;
         }
+
+        TaskActivity::create([
+            'task_id' => $event->task->id,
+            'user_id' => $event->actor->id,
+            'action' => isset($event->changes['status']) && count($event->changes) === 1 ? 'status_updated' : 'updated',
+            'changes' => $structuredChanges,
+            'created_at' => now(),
+        ]);
 
         // Tag the currently assigned user (if different from the actor and not already tagged) so they get a priority notification
         $assigneeSuffix = '';

@@ -9,6 +9,7 @@ use App\Http\Controllers\ProfileTwoFactorController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectMemberController;
 use App\Http\Controllers\TaskAiController;
+use App\Http\Controllers\TaskAttachmentController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TaskSubtaskController;
 use App\Http\Controllers\UserController;
@@ -42,6 +43,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('task', TaskController::class);
     Route::patch('/task/{task}/quick-assign', [TaskController::class, 'quickAssign'])
         ->name('task.quickAssign');
+    Route::post('/task/{task}/attachments', [TaskAttachmentController::class, 'store'])
+        ->name('task.attachments.store');
+    Route::get('/task/{task}/attachments/{attachment}/download', [TaskAttachmentController::class, 'download'])
+        ->name('task.attachments.download');
+    Route::delete('/task/{task}/attachments/{attachment}', [TaskAttachmentController::class, 'destroy'])
+        ->name('task.attachments.destroy');
     Route::patch('/task/{task}/status', [TaskController::class, 'updateStatus'])
         ->name('task.updateStatus');
     Route::post('/task/{task}/subtasks', [TaskSubtaskController::class, 'store'])
