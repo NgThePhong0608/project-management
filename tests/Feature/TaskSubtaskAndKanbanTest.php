@@ -130,6 +130,17 @@ class TaskSubtaskAndKanbanTest extends TestCase
                 ->component('Task/Index')
                 ->where('queryParams.view', 'kanban')
                 ->has('tasks.data', 1)
+                ->has('tasks.meta.links')
+            );
+
+        $this->actingAs($assignee)
+            ->get(route('project.show', ['project' => $project->id, 'view' => 'kanban']))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Project/Show')
+                ->where('queryParams.view', 'kanban')
+                ->has('tasks.data', 1)
+                ->has('tasks.meta.links')
             );
 
         $this->actingAs($assignee)

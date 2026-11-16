@@ -119,10 +119,11 @@ class ProjectController extends Controller
             $query->where('status', request('status'));
         }
 
-        $isKanban = request('view') === 'kanban';
-        $tasks = $isKanban
-            ? $query->orderBy($sortField, $sortDirection)->limit(200)->get()
-            : $query->orderBy($sortField, $sortDirection)->paginate(10)->onEachSide(1);
+        $perPage = request('view') === 'kanban' ? 60 : 10;
+        $tasks = $query->orderBy($sortField, $sortDirection)
+            ->paginate($perPage)
+            ->withQueryString()
+            ->onEachSide(1);
 
         $project->load('members');
         $canManage = auth()->user()->can('manageMembers', $project);
