@@ -2,7 +2,7 @@ import React, { useRef, useState } from "react";
 import InputError from "@/Components/InputError";
 import InputLabel from "@/Components/InputLabel";
 import SelectInput from "@/Components/SelectInput";
-import TextAreaInput from "@/Components/TextAreaInput";
+import MarkdownEditor from "@/Components/MarkdownEditor";
 import TextInput from "@/Components/TextInput";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head, Link, useForm } from "@inertiajs/react";
@@ -297,7 +297,7 @@ const Create = ({ auth, projects, users }) => {
                   </button>
                 </div>
 
-                <TextAreaInput
+                <MarkdownEditor
                   id="task_description"
                   name="description"
                   value={data.description}

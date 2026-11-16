@@ -1,5 +1,6 @@
 import React from "react";
 import CommentSection from "@/Components/CommentSection";
+import MarkdownRenderer from "@/Components/MarkdownRenderer";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head, Link } from "@inertiajs/react";
 import {
@@ -141,7 +142,9 @@ const Show = ({ auth, task, comments, mentionable }) => {
 
               <div className="mt-4">
                 <label className="font-bold text-lg">Task Description</label>
-                <p className="mt-1">{task.description}</p>
+                <div className="mt-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30 p-4">
+                  <MarkdownRenderer content={task.description} />
+                </div>
               </div>
             </div>
           </div>
