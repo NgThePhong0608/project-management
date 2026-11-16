@@ -2,6 +2,8 @@ import React from "react";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head, Link } from "@inertiajs/react";
 import TasksTable from "./TasksTable";
+import TasksKanban from "@/Components/TasksKanban";
+import TaskViewToggle from "@/Components/TaskViewToggle";
 import {
   Card,
   CardHeader,
@@ -41,18 +43,28 @@ const Index = ({ auth, tasks, queryParams = null, success }) => {
                 Manage, filter, and track all workspace tasks.
               </CardDescription>
             </div>
-            {auth?.can?.createTask && (
-              <Link href={route("task.create")}>
-                <Button size="sm" className="gap-1.5">
-                  <Plus className="h-4 w-4" />
-                  <span>Add new task</span>
-                </Button>
-              </Link>
-            )}
+            <div className="flex items-center gap-3">
+              <TaskViewToggle
+                routeName="task.index"
+                queryParams={queryParams}
+              />
+              {auth?.can?.createTask && (
+                <Link href={route("task.create")}>
+                  <Button size="sm" className="gap-1.5">
+                    <Plus className="h-4 w-4" />
+                    <span>Add new task</span>
+                  </Button>
+                </Link>
+              )}
+            </div>
           </CardHeader>
 
           <CardContent className="p-0">
-            <TasksTable tasks={tasks} queryParams={queryParams} />
+            {queryParams?.view === "kanban" ? (
+              <TasksKanban tasks={tasks} />
+            ) : (
+              <TasksTable tasks={tasks} queryParams={queryParams} />
+            )}
           </CardContent>
         </Card>
       </div>

@@ -10,6 +10,7 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\ProjectMemberController;
 use App\Http\Controllers\TaskAiController;
 use App\Http\Controllers\TaskController;
+use App\Http\Controllers\TaskSubtaskController;
 use App\Http\Controllers\UserController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -41,6 +42,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('task', TaskController::class);
     Route::patch('/task/{task}/quick-assign', [TaskController::class, 'quickAssign'])
         ->name('task.quickAssign');
+    Route::patch('/task/{task}/status', [TaskController::class, 'updateStatus'])
+        ->name('task.updateStatus');
+    Route::post('/task/{task}/subtasks', [TaskSubtaskController::class, 'store'])
+        ->name('task.subtasks.store');
+    Route::patch('/task/{task}/subtasks/{subtask}/toggle', [TaskSubtaskController::class, 'toggle'])
+        ->name('task.subtasks.toggle');
+    Route::delete('/task/{task}/subtasks/{subtask}', [TaskSubtaskController::class, 'destroy'])
+        ->name('task.subtasks.destroy');
     Route::prefix('tasks/ai')->name('task.ai.')->group(function () {
         Route::post('/breakdown', [TaskAiController::class, 'breakdown'])->name('breakdown');
         Route::post('/enhance', [TaskAiController::class, 'enhance'])->name('enhance');
