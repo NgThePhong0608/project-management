@@ -104,7 +104,11 @@ class ProjectController extends Controller
     {
         $query = $project->tasks()
             ->visibleTo(auth()->user())
-            ->with(['project.members:id,name,email,role,avatar_path', 'project.createdBy', 'assignedUser', 'createdBy', 'updatedBy']);
+            ->with(['project.members:id,name,email,role,avatar_path', 'project.createdBy', 'assignedUser', 'createdBy', 'updatedBy'])
+            ->withCount([
+                'subtasks',
+                'subtasks as completed_subtasks_count' => fn ($q) => $q->where('is_completed', true),
+            ]);
 
         $sortField = request('sort_field', 'created_at');
         $sortDirection = request('sort_direction', 'desc');
@@ -114,7 +118,12 @@ class ProjectController extends Controller
         if (request('status')) {
             $query->where('status', request('status'));
         }
-        $tasks = $query->orderBy($sortField, $sortDirection)->paginate(10)->onEachSide(1);
+
+        $perPage = request('view') === 'kanban' ? 60 : 10;
+        $tasks = $query->orderBy($sortField, $sortDirection)
+            ->paginate($perPage)
+            ->withQueryString()
+            ->onEachSide(1);
 
         $project->load('members');
         $canManage = auth()->user()->can('manageMembers', $project);

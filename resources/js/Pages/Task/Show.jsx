@@ -1,6 +1,7 @@
 import React from "react";
 import CommentSection from "@/Components/CommentSection";
 import MarkdownRenderer from "@/Components/MarkdownRenderer";
+import TaskSubtasks from "@/Components/TaskSubtasks";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
 import { Head, Link } from "@inertiajs/react";
 import {
@@ -146,6 +147,12 @@ const Show = ({ auth, task, comments, mentionable }) => {
                   <MarkdownRenderer content={task.description} />
                 </div>
               </div>
+
+              <TaskSubtasks
+                taskId={task.id}
+                subtasks={task.subtasks || []}
+                canUpdate={Boolean(task.can?.update)}
+              />
             </div>
           </div>
         </div>

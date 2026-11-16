@@ -5,7 +5,7 @@ import SelectInput from "@/Components/SelectInput";
 import MarkdownEditor from "@/Components/MarkdownEditor";
 import TextInput from "@/Components/TextInput";
 import AuthenticatedLayout from "@/Layouts/AuthenticatedLayout";
-import { Head, Link, useForm } from "@inertiajs/react";
+import { Head, Link, router, useForm } from "@inertiajs/react";
 import { PhotoIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { Sparkles, Loader2, Check } from "lucide-react";
 import { Badge } from "@/Components/ui/badge";
@@ -19,6 +19,7 @@ const Edit = ({ auth, task, projects, users }) => {
   const [breakingDown, setBreakingDown] = useState(false);
   const [subtasks, setSubtasks] = useState(null);
   const [appendedSuccess, setAppendedSuccess] = useState(false);
+  const [addedSubtasksSuccess, setAddedSubtasksSuccess] = useState(false);
 
   const formattedDueDate = task.due_date ? task.due_date.split(" ")[0] : "";
 
@@ -301,6 +302,39 @@ const Edit = ({ auth, task, projects, users }) => {
                       </h4>
                     </div>
                     <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          router.post(
+                            route("task.subtasks.store", task.id),
+                            {
+                              titles: subtasks
+                                .map((s) => s.name)
+                                .filter(Boolean),
+                            },
+                            {
+                              preserveScroll: true,
+                              onSuccess: () => {
+                                setAddedSubtasksSuccess(true);
+                                setTimeout(
+                                  () => setAddedSubtasksSuccess(false),
+                                  2500,
+                                );
+                              },
+                            },
+                          );
+                        }}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md text-white bg-emerald-600 hover:bg-emerald-700 transition shadow-xs"
+                      >
+                        {addedSubtasksSuccess ? (
+                          <>
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Added to Subtasks!</span>
+                          </>
+                        ) : (
+                          <span>Add as Subtasks</span>
+                        )}
+                      </button>
                       <button
                         type="button"
                         disabled={enhancing}
