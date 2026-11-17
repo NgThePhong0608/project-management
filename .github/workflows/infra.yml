@@ -55,8 +55,19 @@ jobs:
         id: plan
         if: env.AWS_ACCESS_KEY_ID != '' && github.event_name == 'pull_request'
         run: |
-          terraform plan -no-color -input=false -out=tfplan > plan_output.txt 2>&1
+          set +e
+          terraform plan -no-color -input=false -out=tfplan > raw_plan.txt 2>&1
           PLAN_EXIT=$?
+          set -e
+
+          # Redact AWS ARNs, ECR registry URLs, and 12-digit Account IDs before logging or commenting
+          sed -E \
+            -e "s/arn:aws:[a-zA-Z0-9_-]+:[a-z0-9-]*:[0-9]{12}:[^]\"' \t]+/arn:aws:<REDACTED>/g" \
+            -e "s/[0-9]{12}\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com/<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/g" \
+            -e "s/(^|[^0-9])[0-9]{12}([^0-9]|$)/\1<ACCOUNT_ID>\2/g" \
+            raw_plan.txt > plan_output.txt
+          rm -f raw_plan.txt
+
           echo "plan_exit=${PLAN_EXIT}" >> $GITHUB_OUTPUT
           cat plan_output.txt
           exit ${PLAN_EXIT}
@@ -69,10 +80,28 @@ jobs:
             const fs = require('fs');
             const path = 'infra/plan_output.txt';
             if (!fs.existsSync(path)) return;
-            const raw = fs.readFileSync(path, 'utf8');
+
+            const sanitize = (text) =>
+              text
+                .replace(/arn:aws:[a-zA-Z0-9_-]+:[a-z0-9-]*:\d{12}:[^\s"'\]]+/g, 'arn:aws:<REDACTED>')
+                .replace(/\d{12}\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com/g, '<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com')
+                .replace(/\b\d{12}\b/g, '<ACCOUNT_ID>');
+
+            const raw = sanitize(fs.readFileSync(path, 'utf8'));
+            const isSuccess = '${{ steps.plan.outcome }}' === 'success';
+            const lines = raw.split('\n');
+
+            let summaryText = raw;
+            if (isSuccess) {
+              const filtered = lines.filter(
+                (line) => /^\s*#\s+(aws_|data\.|module\.)/.test(line) || /^(Plan:|No changes\.)/.test(line)
+              );
+              summaryText = filtered.length > 0 ? filtered.join('\n') : 'No changes. Your infrastructure matches the configuration.';
+            }
+
             const maxLen = 60000;
-            const truncated = raw.length > maxLen ? raw.slice(-maxLen) + '\n... (truncated)' : raw;
-            const status = '${{ steps.plan.outcome }}' === 'success' ? '✅ Passed' : '❌ Failed';
+            const truncated = summaryText.length > maxLen ? summaryText.slice(-maxLen) + '\n... (truncated)' : summaryText;
+            const status = isSuccess ? '✅ Passed' : '❌ Failed';
             const marker = '<!-- terraform-plan-comment -->';
             const body = `${marker}\n### 🏗️ Terraform Plan (${status})\n\`\`\`hcl\n${truncated}\n\`\`\``;
 
