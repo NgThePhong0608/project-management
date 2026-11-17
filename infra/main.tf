@@ -9,18 +9,31 @@ terraform {
     }
   }
 
-  # ponytail: Start with local state; migrate to remote S3 backend once team/CI-CD workflows expand
-  # backend "s3" {
-  #   bucket         = "pm-app-terraform-state"
-  #   key            = "dev/terraform.tfstate"
-  #   region         = "ap-southeast-1"
-  #   dynamodb_table = "pm-terraform-locks"
-  #   encrypt        = true
-  # }
+  backend "s3" {
+    bucket         = "pm-terraform-state-ngthephong01"
+    key            = "dev/terraform.tfstate"
+    region         = "ap-southeast-1"
+    dynamodb_table = "pm-terraform-locks"
+    encrypt        = true
+  }
 }
 
 provider "aws" {
   region = var.aws_region
+
+  default_tags {
+    tags = {
+      Project     = "project-management"
+      Environment = var.environment
+      ManagedBy   = "terraform"
+    }
+  }
+}
+
+# Secondary provider required for CloudFront ACM certificates in us-east-1
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
 
   default_tags {
     tags = {

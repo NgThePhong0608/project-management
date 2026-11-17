@@ -4,13 +4,21 @@ on:
   workflow_call:
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   terraform-check:
-    name: Terraform Format & Validate
+    name: Terraform Format, Plan & Apply
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: infra
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ap-southeast-1
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -19,14 +27,77 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "~1.11"
+          terraform_wrapper: false
 
       - name: Check Terraform formatting
         run: terraform fmt -check -recursive
 
-      - name: Initialize Terraform (without remote backend)
+      - name: Initialize Terraform (offline validation fallback)
+        if: env.AWS_ACCESS_KEY_ID == ''
         run: terraform init -backend=false
+
+      - name: Configure AWS Credentials
+        if: env.AWS_ACCESS_KEY_ID != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-southeast-1
+
+      - name: Initialize Terraform (S3 remote backend)
+        if: env.AWS_ACCESS_KEY_ID != ''
+        run: terraform init -input=false
 
       - name: Validate Terraform configuration
         run: terraform validate
-        # ponytail: Add terraform plan/apply once S3 remote backend and CI secret injection are enabled
 
+      - name: Run Terraform Plan on Pull Request
+        id: plan
+        if: env.AWS_ACCESS_KEY_ID != '' && github.event_name == 'pull_request'
+        run: |
+          terraform plan -no-color -input=false -out=tfplan > plan_output.txt 2>&1
+          PLAN_EXIT=$?
+          echo "plan_exit=${PLAN_EXIT}" >> $GITHUB_OUTPUT
+          cat plan_output.txt
+          exit ${PLAN_EXIT}
+
+      - name: Comment Terraform Plan on Pull Request
+        if: always() && env.AWS_ACCESS_KEY_ID != '' && github.event_name == 'pull_request' && steps.plan.outcome != 'skipped'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = 'infra/plan_output.txt';
+            if (!fs.existsSync(path)) return;
+            const raw = fs.readFileSync(path, 'utf8');
+            const maxLen = 60000;
+            const truncated = raw.length > maxLen ? raw.slice(-maxLen) + '\n... (truncated)' : raw;
+            const status = '${{ steps.plan.outcome }}' === 'success' ? '✅ Passed' : '❌ Failed';
+            const marker = '<!-- terraform-plan-comment -->';
+            const body = `${marker}\n### 🏗️ Terraform Plan (${status})\n\`\`\`hcl\n${truncated}\n\`\`\``;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      - name: Run Terraform Apply on Main/Master Push
+        if: env.AWS_ACCESS_KEY_ID != '' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        run: terraform apply -auto-approve -input=false

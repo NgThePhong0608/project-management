@@ -57,3 +57,10 @@ variable "app_env_file" {
   type        = string
   default     = ".env.ssm"
 }
+
+variable "app_env_content" {
+  description = "Optional raw .env content for SSM Parameter Store when running in CI without a local .env.ssm file"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
